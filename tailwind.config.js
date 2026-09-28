@@ -4,13 +4,15 @@ export default {
   theme: {
     extend: {
       colors: {
-        void: '#05030c',
-        abyss: '#0a0618',
-        nebula: '#150a2e',
-        pulse: '#a06bff',
-        glow: '#7de3ff',
-        solar: '#ffcf6b',
-        nova: '#ff6bd6',
+        // ORBIT is monochrome: every token resolves to a point on the
+        // black→white ramp, so layout classes read semantically but render grey.
+        void: '#000000',
+        abyss: '#0a0a0a',
+        nebula: '#141414',
+        pulse: '#d4d4d4',
+        glow: '#f5f5f5',
+        solar: '#e5e5e5',
+        nova: '#ffffff',
       },
       fontFamily: {
         display: ['"Space Grotesk"', 'system-ui', 'sans-serif'],
@@ -18,8 +20,8 @@ export default {
         mono: ['"JetBrains Mono"', 'ui-monospace', 'monospace'],
       },
       boxShadow: {
-        glow: '0 0 24px rgba(160,107,255,.45)',
-        'glow-sm': '0 0 12px rgba(125,227,255,.4)',
+        glow: '0 0 24px rgba(255,255,255,.4)',
+        'glow-sm': '0 0 12px rgba(255,255,255,.35)',
       },
       keyframes: {
         drift: {

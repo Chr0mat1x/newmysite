@@ -3,22 +3,23 @@ import { useMemo, useState } from 'react'
 import { PlanetBadge } from './PlanetBadge'
 import { useGalaxy } from '../state/store'
 import { sfx } from '../lib/audio'
-import { hashString } from '../lib/procgen'
+import { planetSeed } from '../lib/seed'
 
-const HUE_PRESETS = [288, 196, 42, 320, 12, 168, 222, 30, 262, 120, 344, 190, 54, 240, 8, 300]
+/** How many procedural worlds the launch screen offers to pick from. */
+const VARIANTS = [0, 1, 2, 3, 4, 5, 6, 7]
 
 export function AuthGate() {
   const { login, users } = useGalaxy()
   const [mode, setMode] = useState<'enter' | 'pick'>('enter')
   const [handle, setHandle] = useState('')
   const [name, setName] = useState('')
-  const [hue, setHue] = useState(HUE_PRESETS[Math.floor(Math.random() * HUE_PRESETS.length)])
+  const [variant, setVariant] = useState(() => Math.floor(Math.random() * VARIANTS.length))
 
-  const seed = useMemo(() => hashString((handle || 'orbit') + name), [handle, name])
+  const seed = useMemo(() => planetSeed(handle || 'orbit', name || 'traveler', variant), [handle, name, variant])
 
   const submit = () => {
     if (!handle.trim()) return
-    login(handle, name || handle)
+    login(handle, name || handle, variant)
   }
 
   return (
@@ -28,7 +29,7 @@ export function AuthGate() {
         animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1] }}
         className="w-full max-w-md rounded-3xl border border-white/10 bg-black/40 p-7 backdrop-blur-2xl"
-        style={{ boxShadow: '0 0 120px rgba(160,107,255,.22), inset 0 1px 0 rgba(255,255,255,.06)' }}
+        style={{ boxShadow: '0 0 120px rgba(255,255,255,.09), inset 0 1px 0 rgba(255,255,255,.06)' }}
       >
         <div className="mb-7 text-center">
           <motion.div
@@ -36,7 +37,7 @@ export function AuthGate() {
             transition={{ duration: 40, repeat: Infinity, ease: 'linear' }}
             className="mx-auto mb-4 h-16 w-16"
           >
-            <PlanetBadge seed={seed} hue={hue} size={64} />
+            <PlanetBadge seed={seed} size={64} />
           </motion.div>
           <h1 className="font-display text-4xl font-bold tracking-[0.32em] text-white">ORBIT</h1>
           <p className="mt-2 font-mono text-[11px] uppercase tracking-[0.24em] text-pulse/80">
@@ -75,22 +76,26 @@ export function AuthGate() {
                   className="input"
                 />
               </Field>
-              <Field label="planet tone">
+              <Field label="world">
                 <div className="flex flex-wrap gap-2 pt-1">
-                  {HUE_PRESETS.map((h) => (
+                  {VARIANTS.map((v) => (
                     <button
-                      key={h}
+                      key={v}
+                      type="button"
                       onClick={() => {
-                        setHue(h)
+                        setVariant(v)
                         sfx.hover()
                       }}
-                      className="h-6 w-6 rounded-full border transition-transform hover:scale-110"
+                      aria-label={`world ${v + 1}`}
+                      className={`h-11 w-11 rounded-full border transition-transform hover:scale-110 ${
+                        variant === v ? 'border-white' : 'border-white/15'
+                      }`}
                       style={{
-                        background: `hsl(${h},70%,55%)`,
-                        borderColor: hue === h ? '#fff' : 'transparent',
-                        boxShadow: hue === h ? `0 0 14px hsl(${h},90%,60%)` : 'none',
+                        boxShadow: variant === v ? '0 0 16px rgba(255,255,255,.55)' : 'none',
                       }}
-                    />
+                    >
+                      <PlanetBadge seed={planetSeed(handle || 'orbit', name || 'traveler', v)} size={40} />
+                    </button>
                   ))}
                 </div>
               </Field>
@@ -127,7 +132,7 @@ export function AuthGate() {
                       onMouseEnter={() => sfx.hover()}
                       className="flex w-full items-center gap-3 rounded-xl border border-white/5 bg-white/[0.03] p-2 text-left transition-all hover:border-pulse/40 hover:bg-white/[0.07]"
                     >
-                      <PlanetBadge seed={u.seed} hue={u.hue} size={32} />
+                      <PlanetBadge seed={u.seed} size={32} />
                       <div className="min-w-0">
                         <div className="truncate text-sm text-white/90">{u.name}</div>
                         <div className="truncate font-mono text-[10px] text-white/40">@{u.handle}</div>

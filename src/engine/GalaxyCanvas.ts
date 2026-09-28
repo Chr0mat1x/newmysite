@@ -37,7 +37,6 @@ interface Burst {
   x: number
   y: number
   t: number
-  hue: number
   seed: number
 }
 
@@ -114,8 +113,7 @@ export class GalaxyEngine {
         }
       })
 
-      const desc = old?.desc ?? generatePlanet(user.seed, user.hue)
-      desc.hue = user.hue
+      const desc = old?.desc ?? generatePlanet(user.seed)
       return {
         layout,
         user,
@@ -153,8 +151,8 @@ export class GalaxyEngine {
     this.flight = null
   }
 
-  spawnBurst(x: number, y: number, hue: number) {
-    this.bursts.push({ x, y, t: 0, hue, seed: Math.random() * 1000 })
+  spawnBurst(x: number, y: number) {
+    this.bursts.push({ x, y, t: 0, seed: Math.random() * 1000 })
     // screen shake for impact
     this.pulseShake()
   }
@@ -263,7 +261,7 @@ export class GalaxyEngine {
         if (!other.hasNova && other.layout.activity < 40) continue
         const d = Math.hypot(n.layout.x - other.layout.x, n.layout.y - other.layout.y)
         if (d > 900) continue
-        ctx.strokeStyle = `hsla(${n.desc.hue},90%,70%,${0.05 * (1 - d / 900)})`
+        ctx.strokeStyle = `hsla(0,0%,88%,${0.07 * (1 - d / 900)})`
         ctx.lineWidth = 0.8 / this.cam.zoom
         ctx.beginPath()
         ctx.moveTo(n.layout.x, n.layout.y)
@@ -326,7 +324,7 @@ export class GalaxyEngine {
       ctx.ellipse(0, 0, rr, rr * tilt, 0, 0, TAU)
       ctx.lineWidth = clamp(1.1 * (this.cam.zoom > 1.4 ? 1 : 0.8), 0.5, 2.4)
       const a = (n.hasNova ? 0.3 : 0.16) * clamp(this.cam.zoom, 0.4, 1.6)
-      ctx.strokeStyle = `hsla(${n.desc.hue2},95%,72%,${a})`
+      ctx.strokeStyle = `hsla(0,0%,86%,${a})`
       ctx.stroke()
     }
     ctx.restore()
@@ -346,7 +344,7 @@ export class GalaxyEngine {
       const y = n.layout.y + Math.sin(a) * rr * tilt
       const nova = !!s.post.supernovaAt && Date.now() - (s.post.supernovaAt ?? 0) < 24 * 3600 * 1000
       if (lod) {
-        ctx.fillStyle = nova ? 'rgba(255,180,255,.9)' : `hsla(${n.desc.hue2},90%,80%,.6)`
+        ctx.fillStyle = nova ? 'rgba(255,255,255,.95)' : 'hsla(0,0%,84%,.6)'
         ctx.fillRect(x - 1, y - 1, 2, 2)
         continue
       }
@@ -354,33 +352,33 @@ export class GalaxyEngine {
       // glow
       const glow = ctx.createRadialGradient(x, y, 0, x, y, size * 3.4)
       if (nova) {
-        glow.addColorStop(0, 'rgba(255,230,255,.95)')
-        glow.addColorStop(0.4, 'rgba(255,107,214,.5)')
-        glow.addColorStop(1, 'rgba(255,107,214,0)')
+        glow.addColorStop(0, 'rgba(255,255,255,.98)')
+        glow.addColorStop(0.4, 'rgba(255,255,255,.5)')
+        glow.addColorStop(1, 'rgba(255,255,255,0)')
       } else {
-        glow.addColorStop(0, `hsla(${n.desc.hue2},100%,82%,.85)`)
-        glow.addColorStop(1, `hsla(${n.desc.hue},100%,60%,0)`)
+        glow.addColorStop(0, 'hsla(0,0%,88%,.85)')
+        glow.addColorStop(1, 'hsla(0,0%,70%,0)')
       }
       ctx.fillStyle = glow
       ctx.beginPath()
       ctx.arc(x, y, size * 3.4, 0, TAU)
       ctx.fill()
 
-      ctx.fillStyle = nova ? '#fff2ff' : '#ffffff'
+      ctx.fillStyle = nova ? '#ffffff' : '#f2f2f2'
       ctx.beginPath()
       ctx.arc(x, y, size, 0, TAU)
       ctx.fill()
 
       // image satellites get a tiny preview chip
       if (s.post.image && this.cam.zoom > 1.15) {
-        this.drawSatChip(x, y, s, n.desc.hue2)
+        this.drawSatChip(x, y, s)
       }
     }
     ctx.restore()
   }
 
   private chipCache = new Map<string, HTMLImageElement>()
-  private drawSatChip(x: number, y: number, s: Satellite, hue: number) {
+  private drawSatChip(x: number, y: number, s: Satellite) {
     const ctx = this.ctx
     const size = 26
     const key = s.post.image!
@@ -410,7 +408,7 @@ export class GalaxyEngine {
     ctx.drawImage(img, hx, hy, size, size)
     ctx.restore()
     ctx.lineWidth = 1.2
-    ctx.strokeStyle = s.post.supernovaAt ? 'rgba(255,150,235,.95)' : `hsla(${hue},95%,78%,.75)`
+    ctx.strokeStyle = s.post.supernovaAt ? 'rgba(255,255,255,.95)' : 'hsla(0,0%,88%,.75)'
     ctx.stroke()
     ctx.restore()
   }
@@ -431,8 +429,8 @@ export class GalaxyEngine {
       ctx.save()
       ctx.globalCompositeOperation = 'screen'
       const g = ctx.createRadialGradient(x, y, 0, x, y, 22 / this.cam.zoom + radius)
-      g.addColorStop(0, `hsla(${n.desc.hue},95%,80%,.95)`)
-      g.addColorStop(1, `hsla(${n.desc.hue2},95%,60%,0)`)
+      g.addColorStop(0, 'hsla(0,0%,96%,.95)')
+      g.addColorStop(1, 'hsla(0,0%,70%,0)')
       ctx.fillStyle = g
       ctx.beginPath()
       ctx.arc(x, y, 22 / this.cam.zoom + radius, 0, TAU)
@@ -451,9 +449,9 @@ export class GalaxyEngine {
       ctx.globalCompositeOperation = 'screen'
       const pulse = 0.7 + 0.3 * Math.sin(time * 2.4 + n.layout.x * 0.01)
       const rg = ctx.createRadialGradient(x, y, radius * 0.7, x, y, radius * (2.4 + pulse * 0.6))
-      rg.addColorStop(0, `hsla(${n.desc.hue},100%,88%,${0.32 * pulse})`)
-      rg.addColorStop(0.5, 'rgba(255,107,214,.16)')
-      rg.addColorStop(1, 'rgba(255,107,214,0)')
+      rg.addColorStop(0, `hsla(0,0%,100%,${0.32 * pulse})`)
+      rg.addColorStop(0.5, 'rgba(255,255,255,.18)')
+      rg.addColorStop(1, 'rgba(255,255,255,0)')
       ctx.fillStyle = rg
       ctx.beginPath()
       ctx.arc(x, y, radius * (2.4 + pulse * 0.6), 0, TAU)
@@ -461,7 +459,7 @@ export class GalaxyEngine {
 
       // diffraction spikes
       const spike = radius * (1.5 + pulse * 0.5)
-      ctx.strokeStyle = `hsla(300,100%,85%,${0.22 * pulse})`
+      ctx.strokeStyle = `hsla(0,0%,100%,${0.24 * pulse})`
       ctx.lineWidth = Math.max(1, radius * 0.06)
       for (let i = 0; i < 4; i++) {
         const a = (i * Math.PI) / 4 + time * 0.1
@@ -484,11 +482,11 @@ export class GalaxyEngine {
       const ty = y + radius * 1.35 + fs
       ctx.shadowColor = 'rgba(0,0,0,.9)'
       ctx.shadowBlur = 8
-      ctx.fillStyle = isHover || isSel ? '#ffffff' : 'rgba(226,220,255,.72)'
+      ctx.fillStyle = isHover || isSel ? '#ffffff' : 'rgba(222,222,222,.72)'
       ctx.fillText(label, x, ty)
       if (n.hasNova && scr > 26) {
         ctx.font = `600 ${fs * 0.72}px "JetBrains Mono", monospace`
-        ctx.fillStyle = 'rgba(255,150,235,.95)'
+        ctx.fillStyle = 'rgba(255,255,255,.95)'
         ctx.fillText('SUPERNOVA', x, ty + fs * 1.25)
       }
       ctx.restore()
@@ -497,7 +495,7 @@ export class GalaxyEngine {
     // selection reticle
     if (isSel) {
       ctx.save()
-      ctx.strokeStyle = 'rgba(200,235,255,.85)'
+      ctx.strokeStyle = 'rgba(255,255,255,.85)'
       ctx.lineWidth = Math.max(1, 1.4 / this.cam.zoom)
       const r = radius * 1.6
       const gap = 0.35
@@ -522,9 +520,9 @@ export class GalaxyEngine {
       const a = 1 - p / 0.18
       const rg = ctx.createRadialGradient(b.x, b.y, 0, b.x, b.y, 260)
       rg.addColorStop(0, `rgba(255,255,255,${a})`)
-      rg.addColorStop(0.3, `hsla(${b.hue},100%,80%,${a * 0.8})`)
-      rg.addColorStop(0.7, 'rgba(255,107,214,.3)')
-      rg.addColorStop(1, 'rgba(255,107,214,0)')
+      rg.addColorStop(0.3, `hsla(0,0%,85%,${a * 0.8})`)
+      rg.addColorStop(0.7, 'rgba(255,255,255,.3)')
+      rg.addColorStop(1, 'rgba(255,255,255,0)')
       ctx.fillStyle = rg
       ctx.beginPath()
       ctx.arc(b.x, b.y, 260, 0, TAU)
@@ -535,7 +533,7 @@ export class GalaxyEngine {
     ctx.beginPath()
     ctx.arc(b.x, b.y, rr, 0, TAU)
     ctx.lineWidth = Math.max(0.5, 10 * (1 - p))
-    ctx.strokeStyle = `hsla(${b.hue},100%,85%,${(1 - p) * 0.7})`
+    ctx.strokeStyle = `hsla(0,0%,100%,${(1 - p) * 0.7})`
     ctx.stroke()
 
     // particle sparks
@@ -546,7 +544,7 @@ export class GalaxyEngine {
       const x = b.x + Math.cos(a) * sp * p
       const y = b.y + Math.sin(a) * sp * p
       const alpha = (1 - p) * (0.4 + rnd() * 0.6)
-      ctx.fillStyle = `hsla(${b.hue + rnd() * 80},100%,${75 + rnd() * 20}%,${alpha})`
+      ctx.fillStyle = `hsla(0,0%,${78 + rnd() * 22}%,${alpha})`
       ctx.beginPath()
       ctx.arc(x, y, 1 + rnd() * 2.4 * (1 - p), 0, TAU)
       ctx.fill()
@@ -562,7 +560,7 @@ export class GalaxyEngine {
     const cy = h / 2
     const n = Math.floor(140 * this.warp)
     const rnd = mulberry32(Math.floor(this.cam.x + this.cam.y))
-    ctx.strokeStyle = `rgba(190,215,255,${0.16 * this.warp})`
+    ctx.strokeStyle = `rgba(255,255,255,${0.16 * this.warp})`
     ctx.lineWidth = 1
     for (let i = 0; i < n; i++) {
       const a = rnd() * TAU

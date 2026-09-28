@@ -46,7 +46,6 @@ function Orbit() {
         x: l.x,
         y: l.y,
         r: l.radius,
-        hue: userById(l.id)?.hue ?? 280,
         nova: Object.values(state.posts).some(
           (p) => p.authorId === l.id && p.supernovaAt && Date.now() - p.supernovaAt < 86400000,
         ),
@@ -97,7 +96,7 @@ function Orbit() {
       const eng = handleRef.current?.engine
       if (eng) {
         const node = eng.getNode(fresh.authorId)
-        if (node) eng.spawnBurst(node.layout.x, node.layout.y, author?.hue ?? 300)
+        if (node) eng.spawnBurst(node.layout.x, node.layout.y)
       }
     }
     novaCount.current = supernovas.length
@@ -172,14 +171,14 @@ function Orbit() {
             className="group flex items-center gap-3 rounded-2xl border border-white/10 bg-black/45 px-3 py-2 backdrop-blur-xl transition-colors hover:border-pulse/40"
           >
             <svg width="22" height="22" viewBox="0 0 32 32" className="transition-transform group-hover:rotate-180 duration-700">
-              <circle cx="16" cy="16" r="6.5" fill="#a06bff" />
+              <circle cx="16" cy="16" r="6.5" fill="#f5f5f5" />
               <ellipse
                 cx="16"
                 cy="16"
                 rx="13.5"
                 ry="4.8"
                 fill="none"
-                stroke="#7de3ff"
+                stroke="#8a8a8a"
                 strokeWidth="1.3"
                 transform="rotate(-25 16 16)"
               />
@@ -198,7 +197,7 @@ function Orbit() {
               onMouseEnter={() => sfx.hover()}
               className="hidden items-center gap-2.5 rounded-2xl border border-white/10 bg-black/45 px-3 py-2 backdrop-blur-xl transition-colors hover:border-pulse/40 sm:flex"
             >
-              <PlanetBadge seed={currentUser.seed} hue={currentUser.hue} size={30} />
+              <PlanetBadge seed={currentUser.seed} size={30} />
               <div className="text-left">
                 <div className="font-display text-[12px] text-white/90">{currentUser.name}</div>
                 <div className="font-mono text-[9px] text-white/40">
@@ -218,7 +217,7 @@ function Orbit() {
               animate={{ scale: supernovas.length ? [1, 1.25, 1] : 1 }}
               transition={{ duration: 2, repeat: Infinity }}
               className="h-2 w-2 rounded-full bg-nova"
-              style={{ boxShadow: '0 0 10px #ff6bd6' }}
+              style={{ boxShadow: '0 0 10px rgba(255,255,255,.95)' }}
             />
             <span className="font-mono text-[10px] uppercase tracking-[0.15em] text-nova">
               {supernovas.length} nova
@@ -280,7 +279,7 @@ function Orbit() {
                 onMouseEnter={() => sfx.hover()}
                 className="flex items-center gap-2 rounded-xl border border-white/[0.07] bg-black/40 px-2.5 py-1.5 backdrop-blur-xl transition-all hover:border-pulse/40 hover:bg-black/60"
               >
-                <PlanetBadge seed={u.seed} hue={u.hue} size={20} />
+                <PlanetBadge seed={u.seed} size={20} />
                 <span className="font-mono text-[10px] text-white/60">@{u.handle}</span>
                 <span className="ml-auto font-mono text-[9px] text-white/25">⚡{Math.round(l.activity)}</span>
               </button>
@@ -299,7 +298,7 @@ function Orbit() {
               onClick={() => setComposerOpen(true)}
               onMouseEnter={() => sfx.hover()}
               className="pointer-events-auto rounded-full bg-gradient-to-r from-glow via-pulse to-nova px-5 py-3.5 font-display text-xs font-bold tracking-wider text-black transition-all hover:brightness-110 active:scale-95"
-              style={{ boxShadow: '0 0 40px rgba(160,107,255,.45)' }}
+              style={{ boxShadow: '0 0 40px rgba(255,255,255,.3)' }}
             >
               + SATELLITE
             </motion.button>
@@ -384,14 +383,14 @@ function Shell() {
             className="absolute inset-0"
             style={{
               background:
-                'radial-gradient(ellipse at 20% 20%, rgba(160,107,255,.16), transparent 55%), radial-gradient(ellipse at 80% 70%, rgba(125,227,255,.12), transparent 55%), radial-gradient(ellipse at 50% 110%, rgba(255,107,214,.12), transparent 60%)',
+                'radial-gradient(ellipse at 20% 20%, rgba(255,255,255,.09), transparent 55%), radial-gradient(ellipse at 80% 70%, rgba(255,255,255,.06), transparent 55%), radial-gradient(ellipse at 50% 110%, rgba(255,255,255,.07), transparent 60%)',
             }}
           />
           <div
             className="absolute inset-0 opacity-[0.35]"
             style={{
               backgroundImage:
-                'radial-gradient(1px 1px at 20px 30px, #fff, transparent), radial-gradient(1px 1px at 130px 80px, #dfe6ff, transparent), radial-gradient(1px 1px at 260px 40px, #fff, transparent), radial-gradient(1.5px 1.5px at 90px 200px, #cbd5ff, transparent), radial-gradient(1px 1px at 320px 260px, #fff, transparent), radial-gradient(1px 1px at 180px 340px, #fff, transparent)',
+                'radial-gradient(1px 1px at 20px 30px, #fff, transparent), radial-gradient(1px 1px at 130px 80px, #e8e8e8, transparent), radial-gradient(1px 1px at 260px 40px, #fff, transparent), radial-gradient(1.5px 1.5px at 90px 200px, #d4d4d4, transparent), radial-gradient(1px 1px at 320px 260px, #fff, transparent), radial-gradient(1px 1px at 180px 340px, #fff, transparent)',
               backgroundSize: '400px 400px',
               animation: 'drift 14s ease-in-out infinite',
             }}

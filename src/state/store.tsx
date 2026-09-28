@@ -97,7 +97,7 @@ interface Ctx {
   postById: (id: string) => Post | undefined
   userById: (id: string) => User | undefined
   supernovas: Post[]
-  login: (handle: string, name: string) => User
+  login: (handle: string, name: string, planetVariant?: number) => User
   logout: () => void
   updateProfile: (patch: Partial<User>) => void
   createPost: (text: string, image?: string) => Post | null
@@ -148,12 +148,11 @@ export function GalaxyProvider({ children }: { children: React.ReactNode }) {
   )
 
   const login = useCallback(
-    (handle: string, name: string) => {
+    (handle: string, name: string, planetVariant = 0) => {
       const existing = Object.values(state.users).find(
         (u) => u.handle.toLowerCase() === handle.trim().toLowerCase().replace(/[^a-z0-9_]/gi, ''),
       )
-      const user = existing ?? makeUser(handle, name)
-      if (!existing) user.seed = hashString(user.handle)
+      const user = existing ?? makeUser(handle, name, planetVariant)
       dispatch({ type: 'login', user })
       sfx.launch()
       return user

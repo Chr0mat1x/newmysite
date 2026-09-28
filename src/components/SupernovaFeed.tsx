@@ -25,11 +25,11 @@ export function SupernovaFeed({ open, onClose, onVisit }: { open: boolean; onClo
               exit={{ opacity: 0, y: 20, scale: 0.99 }}
               transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
               className="pointer-events-auto flex max-h-[92dvh] w-[min(680px,94vw)] flex-col overflow-hidden rounded-3xl border border-nova/30 bg-abyss/95 backdrop-blur-2xl"
-              style={{ boxShadow: '0 0 140px rgba(255,107,214,.28)' }}
+              style={{ boxShadow: '0 0 140px rgba(255,255,255,.10)' }}
             >
               <div
                 className="pointer-events-none absolute inset-x-0 top-0 h-48"
-                style={{ background: 'radial-gradient(ellipse at 50% -40%, rgba(255,107,214,.3), transparent 70%)' }}
+                style={{ background: 'radial-gradient(ellipse at 50% -40%, rgba(255,255,255,.10), transparent 70%)' }}
               />
               <header className="relative flex shrink-0 items-center justify-between border-b border-white/[0.07] px-6 py-5">
               <div>
@@ -72,7 +72,7 @@ export function SupernovaFeed({ open, onClose, onVisit }: { open: boolean; onClo
                       }}
                       className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.18em] text-white/40 transition-colors hover:text-white/80"
                     >
-                      <PlanetBadge seed={a.seed} hue={a.hue} size={18} />
+                      <PlanetBadge seed={a.seed} size={18} />
                       visit @{a.handle}'s orbit →
                     </button>
                     <PostCard post={p} index={i} />

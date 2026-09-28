@@ -4,7 +4,6 @@ export interface User {
   name: string
   bio: string
   seed: number
-  hue: number
   createdAt: number
   mock?: boolean
 }

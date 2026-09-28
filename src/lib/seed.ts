@@ -8,46 +8,45 @@ interface SeedUser {
   handle: string
   name: string
   bio: string
-  hue: number
 }
 
 const SEED_USERS: SeedUser[] = [
-  { handle: 'nova', name: 'Nova Ashkar', bio: 'I collect quiet moments and loud colours.', hue: 288 },
-  { handle: 'vela', name: 'Vela Рина', bio: 'Astrophotographer. Sleeping in the desert.', hue: 196 },
-  { handle: 'kepler', name: 'Kepler Ng', bio: 'Exoplanet hunter by day, synth wizard by night.', hue: 42 },
-  { handle: 'lyra', name: 'Lyra Sørensen', bio: 'Making playlists for long drives on Europa.', hue: 320 },
-  { handle: 'atlas', name: 'Atlas Bek', bio: 'Weightlifting heavy things and heavy thoughts.', hue: 12 },
-  { handle: 'mira', name: 'Mira Okonkwo', bio: 'Painter of impossible skies.', hue: 168 },
-  { handle: 'orion', name: 'Orion Vasquez', bio: 'I argue with telescopes for a living.', hue: 222 },
-  { handle: 'solen', name: 'Solen Farid', bio: 'Ceramics, tea, and gravity.', hue: 30 },
-  { handle: 'iris', name: 'Iris Lindqvist', bio: 'Science fiction is just paperwork for the future.', hue: 262 },
-  { handle: 'cael', name: 'Cael Moreau', bio: 'Rooftop gardener. Failed astronaut.', hue: 120 },
-  { handle: 'zeta', name: 'Zeta Amaral', bio: 'Drummer. I keep time with the moons.', hue: 344 },
-  { handle: 'kappa', name: 'Kappa Ильин', bio: 'Cold water swimmer in a warm universe.', hue: 190 },
-  { handle: 'lumen', name: 'Lumen Díaz', bio: 'Lighting designer. Everything is a gradient.', hue: 54 },
-  { handle: 'occus', name: 'Occus Rahal', bio: 'Mapping dark matter with spreadsheets.', hue: 240 },
-  { handle: 'petra', name: 'Petra Lindgren', bio: 'Rocks. Big ones. Volcanic ones.', hue: 8 },
-  { handle: 'sable', name: 'Sable Okoye', bio: 'Analog film, digital heart.', hue: 300 },
-  { handle: 'titan', name: 'Titan Rhodes', bio: 'Building a cabin with my own hands.', hue: 96 },
-  { handle: 'umbra', name: 'Umbra Sato', bio: 'Night shift nurse. Sunrises are a hobby.', hue: 274 },
-  { handle: 'vega', name: 'Vega Halvorsen', bio: 'Sound designer for imaginary films.', hue: 210 },
-  { handle: 'wren', name: 'Wren Castellanos', bio: 'Poems about bus stops and black holes.', hue: 336 },
-  { handle: 'xen', name: 'Xen Park', bio: 'Chess, coffee, and cold logic.', hue: 158 },
-  { handle: 'yuki', name: 'Yuki Brand', bio: 'Snowboarder chasing powder across planets.', hue: 186 },
-  { handle: 'zeno', name: 'Zeno Marchetti', bio: 'Philosopher of small scales.', hue: 66 },
-  { handle: 'aero', name: 'Aero Kovács', bio: 'Paragliding instructor. Gravity is a suggestion.', hue: 26 },
-  { handle: 'borealis', name: 'Borealis Hunt', bio: 'I chase auroras and tell bad jokes.', hue: 152 },
-  { handle: 'cygni', name: 'Cygni Ferreira', bio: 'Illustrator. I draw what telescopes miss.', hue: 308 },
-  { handle: 'draco', name: 'Draco Ibrahim', bio: 'Parkour, bread baking, chaos.', hue: 0 },
-  { handle: 'ember', name: 'Ember Solano', bio: 'Wildfire photographer. Sorry, not sorry.', hue: 18 },
-  { handle: 'fable', name: 'Fable Rossi', bio: 'Children\'s book author who never grew up.', hue: 284 },
-  { handle: 'glint', name: 'Glint Haddad', bio: 'Lapidary. I make gems out of rubble.', hue: 174 },
-  { handle: 'helio', name: 'Helio Nakamura', bio: 'Solar engineer. Powered by the actual sun.', hue: 48 },
-  { handle: 'io', name: 'Io Petrova', bio: 'Volcanologist. Everything is temporary.', hue: 356 },
-  { handle: 'juno', name: 'Juno Alvarez', bio: 'Mother, mechanic, midnight baker.', hue: 232 },
-  { handle: 'kelp', name: 'Kelp Andersen', bio: 'Underwater gardener. Breathe slow.', hue: 140 },
-  { handle: 'lucid', name: 'Lucid Tamm', bio: 'Sleep researcher documenting my own dreams.', hue: 268 },
-  { handle: 'monsoon', name: 'Monsoon Devi', bio: 'Storm chaser. Wind is my coworker.', hue: 204 },
+  { handle: 'nova', name: 'Nova Ashkar', bio: 'I collect quiet moments and loud colours.' },
+  { handle: 'vela', name: 'Vela Рина', bio: 'Astrophotographer. Sleeping in the desert.' },
+  { handle: 'kepler', name: 'Kepler Ng', bio: 'Exoplanet hunter by day, synth wizard by night.' },
+  { handle: 'lyra', name: 'Lyra Sørensen', bio: 'Making playlists for long drives on Europa.' },
+  { handle: 'atlas', name: 'Atlas Bek', bio: 'Weightlifting heavy things and heavy thoughts.' },
+  { handle: 'mira', name: 'Mira Okonkwo', bio: 'Painter of impossible skies.' },
+  { handle: 'orion', name: 'Orion Vasquez', bio: 'I argue with telescopes for a living.' },
+  { handle: 'solen', name: 'Solen Farid', bio: 'Ceramics, tea, and gravity.' },
+  { handle: 'iris', name: 'Iris Lindqvist', bio: 'Science fiction is just paperwork for the future.' },
+  { handle: 'cael', name: 'Cael Moreau', bio: 'Rooftop gardener. Failed astronaut.' },
+  { handle: 'zeta', name: 'Zeta Amaral', bio: 'Drummer. I keep time with the moons.' },
+  { handle: 'kappa', name: 'Kappa Ильин', bio: 'Cold water swimmer in a warm universe.' },
+  { handle: 'lumen', name: 'Lumen Díaz', bio: 'Lighting designer. Everything is a gradient.' },
+  { handle: 'occus', name: 'Occus Rahal', bio: 'Mapping dark matter with spreadsheets.' },
+  { handle: 'petra', name: 'Petra Lindgren', bio: 'Rocks. Big ones. Volcanic ones.' },
+  { handle: 'sable', name: 'Sable Okoye', bio: 'Analog film, digital heart.' },
+  { handle: 'titan', name: 'Titan Rhodes', bio: 'Building a cabin with my own hands.' },
+  { handle: 'umbra', name: 'Umbra Sato', bio: 'Night shift nurse. Sunrises are a hobby.' },
+  { handle: 'vega', name: 'Vega Halvorsen', bio: 'Sound designer for imaginary films.' },
+  { handle: 'wren', name: 'Wren Castellanos', bio: 'Poems about bus stops and black holes.' },
+  { handle: 'xen', name: 'Xen Park', bio: 'Chess, coffee, and cold logic.' },
+  { handle: 'yuki', name: 'Yuki Brand', bio: 'Snowboarder chasing powder across planets.' },
+  { handle: 'zeno', name: 'Zeno Marchetti', bio: 'Philosopher of small scales.' },
+  { handle: 'aero', name: 'Aero Kovács', bio: 'Paragliding instructor. Gravity is a suggestion.' },
+  { handle: 'borealis', name: 'Borealis Hunt', bio: 'I chase auroras and tell bad jokes.' },
+  { handle: 'cygni', name: 'Cygni Ferreira', bio: 'Illustrator. I draw what telescopes miss.' },
+  { handle: 'draco', name: 'Draco Ibrahim', bio: 'Parkour, bread baking, chaos.' },
+  { handle: 'ember', name: 'Ember Solano', bio: 'Wildfire photographer. Sorry, not sorry.' },
+  { handle: 'fable', name: 'Fable Rossi', bio: 'Children\'s book author who never grew up.' },
+  { handle: 'glint', name: 'Glint Haddad', bio: 'Lapidary. I make gems out of rubble.' },
+  { handle: 'helio', name: 'Helio Nakamura', bio: 'Solar engineer. Powered by the actual sun.' },
+  { handle: 'io', name: 'Io Petrova', bio: 'Volcanologist. Everything is temporary.' },
+  { handle: 'juno', name: 'Juno Alvarez', bio: 'Mother, mechanic, midnight baker.' },
+  { handle: 'kelp', name: 'Kelp Andersen', bio: 'Underwater gardener. Breathe slow.' },
+  { handle: 'lucid', name: 'Lucid Tamm', bio: 'Sleep researcher documenting my own dreams.' },
+  { handle: 'monsoon', name: 'Monsoon Devi', bio: 'Storm chaser. Wind is my coworker.' },
 ]
 
 const POST_TEXT = [
@@ -134,7 +133,6 @@ export function buildSeedGalaxy(): GalaxyState {
       name: s.name,
       bio: s.bio,
       seed: hashString(s.handle),
-      hue: s.hue,
       createdAt: now - (60 + i) * 86400000,
       mock: true,
     }
@@ -184,16 +182,25 @@ export function buildSeedGalaxy(): GalaxyState {
   return { version: 1, seedVersion: SEED_VERSION, users, posts, currentUserId: null }
 }
 
-export function makeUser(handle: string, name: string, hueSeed?: number): User {
+/**
+ * Builds the seed a user's planet is generated from. In monochrome, colour no
+ * longer distinguishes worlds, so a chosen variant folds into the seed to select
+ * luminance + texture instead. Everything downstream (engine, badges) reads
+ * `user.seed`, so they stay in sync automatically.
+ */
+export function planetSeed(handle: string, name: string, variant = 0): number {
   const clean = handle.trim().toLowerCase().replace(/[^a-z0-9_]/g, '')
-  const seed = hashString(clean + name)
+  return hashString(`${clean}::${name.trim()}::${variant}`)
+}
+
+export function makeUser(handle: string, name: string, planetVariant = 0): User {
+  const clean = handle.trim().toLowerCase().replace(/[^a-z0-9_]/g, '')
   return {
     id: `me_${clean || uid()}`,
     handle: clean || 'traveler',
     name: name.trim() || clean || 'Traveler',
     bio: 'Just entered the galaxy.',
-    seed,
-    hue: hueSeed ?? seed % 360,
+    seed: planetSeed(handle, name || handle, planetVariant),
     createdAt: Date.now(),
     mock: false,
   }

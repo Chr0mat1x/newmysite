@@ -45,7 +45,7 @@ export function Composer({ open, onClose }: { open: boolean; onClose: () => void
               exit={{ opacity: 0, y: 30, scale: 0.98 }}
               transition={{ duration: 0.42, ease: [0.16, 1, 0.3, 1] }}
               className="pointer-events-auto flex max-h-[92dvh] w-[min(540px,92vw)] flex-col overflow-hidden rounded-3xl border border-white/12 bg-abyss/95 backdrop-blur-2xl"
-              style={{ boxShadow: '0 0 100px rgba(160,107,255,.3)' }}
+              style={{ boxShadow: '0 0 100px rgba(255,255,255,.10)' }}
             >
               <div className="flex shrink-0 items-center justify-between border-b border-white/[0.07] px-5 py-3.5">
               <div>
@@ -105,8 +105,8 @@ export function Composer({ open, onClose }: { open: boolean; onClose: () => void
                     src={image}
                     alt=""
                     referrerPolicy="no-referrer"
-                    className="max-h-40 w-full object-cover"
                     onError={(e) => ((e.target as HTMLImageElement).style.opacity = '0.2')}
+                    className="max-h-40 w-full object-cover grayscale"
                   />
                 </div>
               )}

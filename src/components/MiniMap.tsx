@@ -9,7 +9,6 @@ export interface MiniPlanet {
   x: number
   y: number
   r: number
-  hue: number
   nova: boolean
 }
 
@@ -48,7 +47,7 @@ export function MiniMap({
         style={{ width: size, height: size, boxShadow: '0 8px 40px rgba(0,0,0,.6)' }}
       >
         <div className="pointer-events-none absolute inset-0 opacity-40"
-          style={{ background: 'radial-gradient(circle at 50% 50%, rgba(160,107,255,.18), transparent 70%)' }} />
+          style={{ background: 'radial-gradient(circle at 50% 50%, rgba(255,255,255,.12), transparent 70%)' }} />
         {planets.map((p) => {
           const isMe = p.id === meId
           const isHover = p.id === hover
@@ -65,8 +64,8 @@ export function MiniMap({
                 top: toScreen(p.y) - r,
                 width: r * 2,
                 height: r * 2,
-                background: p.nova ? '#ff6bd6' : `hsl(${p.hue},80%,64%)`,
-                boxShadow: isMe || isHover || p.nova ? `0 0 8px hsl(${p.hue},95%,65%)` : 'none',
+                background: p.nova ? '#ffffff' : 'rgba(255,255,255,.55)',
+                boxShadow: isMe || isHover || p.nova ? '0 0 8px rgba(255,255,255,.55)' : 'none',
                 outline: isMe ? '1.5px solid rgba(255,255,255,.9)' : 'none',
                 outlineOffset: 1.5,
                 zIndex: isHover ? 10 : 1,
@@ -84,7 +83,7 @@ export function MiniMap({
             top: toScreen(cam.y) - viewH / 2,
             width: viewW,
             height: viewH,
-            boxShadow: '0 0 12px rgba(125,227,255,.3)',
+            boxShadow: '0 0 12px rgba(255,255,255,.28)',
           }}
         />
 

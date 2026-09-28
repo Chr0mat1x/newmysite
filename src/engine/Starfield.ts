@@ -24,7 +24,6 @@ interface Nebula {
   x: number
   y: number
   r: number
-  hue: number
   alpha: number
 }
 
@@ -71,19 +70,14 @@ export class Starfield {
       phase: rnd() * TAU,
     }))
 
-    // nebulae stay in the violet→magenta→indigo band so the palette reads
-    // as one deep "black-purple" cosmos rather than a muddy rainbow
-    this.nebulae = Array.from({ length: 7 }, () => {
-      const bands = [258, 275, 292, 312, 330, 224]
-      const hue = bands[Math.floor(rnd() * bands.length)] + (rnd() - 0.5) * 12
-      return {
-        x: rnd() * 6000 - 3000,
-        y: rnd() * 6000 - 3000,
-        r: 900 + rnd() * 1500,
-        hue,
-        alpha: 0.05 + rnd() * 0.06,
-      }
-    })
+    // nebulae are achromatic: soft grey light-lifts in the void rather than
+    // coloured clouds, so the whole frame stays black-and-white
+    this.nebulae = Array.from({ length: 7 }, () => ({
+      x: rnd() * 6000 - 3000,
+      y: rnd() * 6000 - 3000,
+      r: 900 + rnd() * 1500,
+      alpha: 0.04 + rnd() * 0.05,
+    }))
   }
 
   resize(w: number, h: number) {
@@ -95,11 +89,11 @@ export class Starfield {
   draw(ctx: CanvasRenderingContext2D, camX: number, camY: number, time: number) {
     const { w, h } = this
 
-    // deep background gradient
+    // deep background: pure black with only the faintest graphite lift
     const g = ctx.createLinearGradient(0, 0, w * 0.6, h)
-    g.addColorStop(0, '#05030c')
-    g.addColorStop(0.45, '#090518')
-    g.addColorStop(1, '#03020a')
+    g.addColorStop(0, '#000000')
+    g.addColorStop(0.45, '#0a0a0a')
+    g.addColorStop(1, '#020202')
     ctx.fillStyle = g
     ctx.fillRect(0, 0, w, h)
 
@@ -111,8 +105,8 @@ export class Starfield {
       const sy = h / 2 + (n.y - camY) * 0.12
       if (sx < -n.r || sx > w + n.r || sy < -n.r || sy > h + n.r) continue
       const rg = ctx.createRadialGradient(sx, sy, 0, sx, sy, n.r)
-      rg.addColorStop(0, `hsla(${n.hue},70%,52%,${n.alpha})`)
-      rg.addColorStop(0.5, `hsla(${n.hue - 28},80%,44%,${n.alpha * 0.5})`)
+      rg.addColorStop(0, `hsla(0,0%,72%,${n.alpha})`)
+      rg.addColorStop(0.5, `hsla(0,0%,50%,${n.alpha * 0.5})`)
       rg.addColorStop(1, 'hsla(0,0%,0%,0)')
       ctx.fillStyle = rg
       ctx.fillRect(sx - n.r, sy - n.r, n.r * 2, n.r * 2)
@@ -143,7 +137,7 @@ export class Starfield {
           for (let ty = sy; ty < h; ty += tileH) {
             const a = s.base * (0.55 + 0.45 * Math.sin(time * s.twinkle + s.phase))
             if (a <= 0.02) continue
-            ctx.fillStyle = `rgba(${220 + Math.floor(a * 35)},${228 + Math.floor(a * 27)},255,${a})`
+            ctx.fillStyle = `rgba(255,255,255,${a})`
             ctx.beginPath()
             ctx.arc(tx, ty, s.r, 0, TAU)
             ctx.fill()

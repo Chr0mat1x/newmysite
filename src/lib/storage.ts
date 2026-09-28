@@ -6,7 +6,7 @@ const KEY = 'orbit.galaxy.v1'
  * Bump whenever the demo seed's shape or tuning changes. Stored galaxies whose
  * version is older are discarded so tuning fixes actually reach returning users.
  */
-export const SEED_VERSION = 2
+export const SEED_VERSION = 3
 
 export function loadState(): GalaxyState | null {
   try {

@@ -4,26 +4,24 @@ import { generatePlanet, planetSprite } from '../lib/procgen'
 /** Renders a user's procedural planet as a crisp DOM element (for lists / avatars). */
 export function PlanetBadge({
   seed,
-  hue,
   size = 44,
   className = '',
   spin = false,
 }: {
   seed: number
-  hue: number
   size?: number
   className?: string
   spin?: boolean
 }) {
   const url = useMemo(() => {
-    const desc = generatePlanet(seed, hue)
+    const desc = generatePlanet(seed)
     const sprite = planetSprite(desc, size)
     try {
       return sprite.toDataURL()
     } catch {
       return ''
     }
-  }, [seed, hue, size])
+  }, [seed, size])
 
   if (!url) return <div className={className} style={{ width: size, height: size }} />
   return (

@@ -46,10 +46,10 @@ export function OrbitView({ userId, onClose, onCompose }: Props) {
             className="fixed bottom-0 right-0 top-0 z-40 flex w-full flex-col border-l border-white/10 bg-abyss/88 backdrop-blur-2xl sm:w-[440px] lg:w-[470px]"
             style={{ boxShadow: '-40px 0 120px rgba(0,0,0,.7)' }}
           >
-            {/* glowing top edge tinted with the planet hue */}
+            {/* glowing top edge */}
             <div
               className="pointer-events-none absolute inset-x-0 top-0 h-40 opacity-50"
-              style={{ background: `radial-gradient(ellipse at 50% -30%, hsla(${user.hue},90%,60%,.35), transparent 70%)` }}
+              style={{ background: `radial-gradient(ellipse at 50% -30%, rgba(255,255,255,.10), transparent 70%)` }}
             />
 
             <header className="relative border-b border-white/[0.07] px-5 pb-5 pt-6">
@@ -68,7 +68,7 @@ export function OrbitView({ userId, onClose, onCompose }: Props) {
                   animate={{ y: [0, -5, 0], rotate: [0, 4, 0] }}
                   transition={{ duration: 7, repeat: Infinity, ease: 'easeInOut' }}
                 >
-                  <PlanetBadge seed={user.seed} hue={user.hue} size={78} />
+                  <PlanetBadge seed={user.seed} size={78} />
                 </motion.div>
                 <div className="min-w-0 flex-1">
                   <h2 className="truncate font-display text-xl font-semibold text-white">{user.name}</h2>
@@ -94,8 +94,8 @@ export function OrbitView({ userId, onClose, onCompose }: Props) {
                 <svg viewBox="0 0 400 74" className="h-full w-full" preserveAspectRatio="none">
                   <defs>
                     <radialGradient id={`pg-${user.id}`}>
-                      <stop offset="0%" stopColor={`hsl(${user.hue},85%,65%)`} />
-                      <stop offset="100%" stopColor={`hsl(${user.hue},85%,40%)`} />
+                      <stop offset="0%" stopColor="#f5f5f5" />
+                      <stop offset="100%" stopColor="#5a5a5a" />
                     </radialGradient>
                   </defs>
                   <circle cx="200" cy="37" r="13" fill={`url(#pg-${user.id})`} />
@@ -107,7 +107,7 @@ export function OrbitView({ userId, onClose, onCompose }: Props) {
                       rx={r}
                       ry={r * 0.34}
                       fill="none"
-                      stroke={`hsla(${user.hue},90%,72%,${0.28 - i * 0.06})`}
+                      stroke={`rgba(255,255,255,${0.28 - i * 0.06})`}
                       strokeWidth="1"
                     />
                   ))}
@@ -120,7 +120,7 @@ export function OrbitView({ userId, onClose, onCompose }: Props) {
                         cx={200 + Math.cos(a) * r}
                         cy={37 + Math.sin(a) * r * 0.34}
                         r={p.supernovaAt ? 2.6 : 1.8}
-                        fill={p.supernovaAt ? '#ff6bd6' : '#cfd8ff'}
+                        fill={p.supernovaAt ? '#ffffff' : '#cfcfcf'}
                         opacity={0.9}
                       />
                     )
@@ -163,12 +163,7 @@ export function OrbitView({ userId, onClose, onCompose }: Props) {
 
               {isMe && (
                 <button
-                  onClick={() =>
-                    updateProfile({
-                      hue: (user.hue + 47) % 360,
-                      seed: user.seed ^ 0x9e3779b9,
-                    })
-                  }
+                  onClick={() => updateProfile({ seed: (user.seed ^ 0x9e3779b9) >>> 0 })}
                   className="mt-2 w-full rounded-xl border border-white/[0.07] py-2 font-mono text-[10px] uppercase tracking-[0.2em] text-white/40 transition-colors hover:text-white/80"
                 >
                   ⟳ remix my planet
@@ -179,7 +174,7 @@ export function OrbitView({ userId, onClose, onCompose }: Props) {
             <div className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
               {posts.length === 0 && (
                 <div className="flex h-full flex-col items-center justify-center px-6 text-center">
-                  <PlanetBadge seed={user.seed} hue={user.hue} size={90} />
+                  <PlanetBadge seed={user.seed} size={90} />
                   <p className="mt-4 font-display text-sm text-white/60">This orbit is empty.</p>
                   <p className="mt-1 font-mono text-[10px] uppercase tracking-widest text-white/30">
                     no satellites in transit

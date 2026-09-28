@@ -35,12 +35,12 @@ export function PostCard({ post, index = 0 }: { post: Post; index?: number }) {
       transition={{ delay: Math.min(index * 0.05, 0.4), duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
       className="group relative overflow-hidden rounded-2xl border backdrop-blur-xl"
       style={{
-        borderColor: nova ? 'rgba(255,107,214,.45)' : 'rgba(255,255,255,.09)',
+        borderColor: nova ? 'rgba(255,255,255,.5)' : 'rgba(255,255,255,.09)',
         background: nova
-          ? 'linear-gradient(150deg, rgba(60,10,50,.55), rgba(10,6,24,.72))'
-          : 'linear-gradient(150deg, rgba(160,107,255,.06), rgba(6,4,16,.66))',
+          ? 'linear-gradient(150deg, rgba(255,255,255,.10), rgba(8,8,8,.75))'
+          : 'linear-gradient(150deg, rgba(255,255,255,.05), rgba(6,6,6,.66))',
         boxShadow: nova
-          ? '0 0 60px rgba(255,107,214,.24), inset 0 1px 0 rgba(255,255,255,.08)'
+          ? '0 0 60px rgba(255,255,255,.20), inset 0 1px 0 rgba(255,255,255,.10)'
           : '0 8px 40px rgba(0,0,0,.5)',
       }}
     >
@@ -48,14 +48,14 @@ export function PostCard({ post, index = 0 }: { post: Post; index?: number }) {
         <div
           className="pointer-events-none absolute inset-0 opacity-40"
           style={{
-            background: 'radial-gradient(circle at 85% -10%, rgba(255,107,214,.35), transparent 60%)',
+            background: 'radial-gradient(circle at 85% -10%, rgba(255,255,255,.14), transparent 60%)',
           }}
         />
       )}
 
       <div className="relative p-4 sm:p-5">
         <header className="mb-3 flex items-start gap-3">
-          <PlanetBadge seed={author.seed} hue={author.hue} size={36} />
+          <PlanetBadge seed={author.seed} size={36} />
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
               <span className="truncate font-display text-sm font-medium text-white/95">{author.name}</span>
@@ -87,7 +87,7 @@ export function PostCard({ post, index = 0 }: { post: Post; index?: number }) {
               loading="lazy"
               referrerPolicy="no-referrer"
               onError={() => setImgOk(false)}
-              className="max-h-[420px] w-full object-cover transition-transform duration-700 group-hover:scale-[1.02]"
+              className="max-h-[420px] w-full object-cover grayscale transition-transform duration-700 group-hover:scale-[1.02]"
             />
             <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
           </div>
@@ -105,7 +105,7 @@ export function PostCard({ post, index = 0 }: { post: Post; index?: number }) {
               transition={{ type: 'spring', stiffness: 90, damping: 18 }}
               className="h-full rounded-full"
               style={{
-                background: 'linear-gradient(90deg, #7de3ff, #a06bff, #ff6bd6)',
+                background: 'linear-gradient(90deg, #5a5a5a, #d4d4d4, #ffffff)',
                 filter: 'blur(.3px)',
               }}
             />
@@ -164,7 +164,7 @@ export function PostCard({ post, index = 0 }: { post: Post; index?: number }) {
                   if (!u) return null
                   return (
                     <div key={s.id} className="flex items-start gap-2.5">
-                      <PlanetBadge seed={u.seed} hue={u.hue} size={22} />
+                      <PlanetBadge seed={u.seed} size={22} />
                       <div className="min-w-0 flex-1 rounded-xl rounded-tl-sm bg-white/[0.04] px-3 py-2">
                         <div className="font-mono text-[10px] text-white/40">@{u.handle}</div>
                         <div className="text-[13px] text-white/80">{s.text}</div>

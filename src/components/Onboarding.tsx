@@ -51,7 +51,7 @@ export function Onboarding({ open, onDone }: { open: boolean; onDone: () => void
             exit={{ opacity: 0, y: -10, scale: 0.99 }}
             transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
             className="w-full max-w-lg rounded-3xl border border-white/12 bg-abyss/95 p-7 backdrop-blur-2xl"
-            style={{ boxShadow: '0 0 120px rgba(160,107,255,.25)' }}
+            style={{ boxShadow: '0 0 120px rgba(255,255,255,.09)' }}
           >
             <div className="mb-4 flex gap-1.5">
               {STEPS.map((_, i) => (
@@ -59,7 +59,7 @@ export function Onboarding({ open, onDone }: { open: boolean; onDone: () => void
                   key={i}
                   className="h-[3px] flex-1 rounded-full transition-all"
                   style={{
-                    background: i <= step ? 'linear-gradient(90deg,#7de3ff,#a06bff,#ff6bd6)' : 'rgba(255,255,255,.1)',
+                    background: i <= step ? 'linear-gradient(90deg,#6b6b6b,#ffffff,#6b6b6b)' : 'rgba(255,255,255,.1)',
                   }}
                 />
               ))}

@@ -23,13 +23,13 @@ export function Toasts({ toasts, onDismiss }: { toasts: Toast[]; onDismiss: (id:
             style={
               t.kind === 'nova'
                 ? {
-                    borderColor: 'rgba(255,107,214,.5)',
-                    background: 'linear-gradient(120deg, rgba(70,10,60,.9), rgba(15,8,30,.9))',
-                    boxShadow: '0 0 60px rgba(255,107,214,.35)',
+                    borderColor: 'rgba(255,255,255,.45)',
+                    background: 'linear-gradient(120deg, rgba(40,40,40,.9), rgba(10,10,10,.9))',
+                    boxShadow: '0 0 60px rgba(255,255,255,.18)',
                   }
                 : {
                     borderColor: 'rgba(255,255,255,.12)',
-                    background: 'rgba(10,6,24,.9)',
+                    background: 'rgba(8,8,8,.9)',
                     boxShadow: '0 12px 40px rgba(0,0,0,.5)',
                   }
             }
@@ -40,7 +40,7 @@ export function Toasts({ toasts, onDismiss }: { toasts: Toast[]; onDismiss: (id:
                   animate={{ scale: [1, 1.35, 1], rotate: [0, 180, 360] }}
                   transition={{ duration: 2.4, repeat: Infinity, ease: 'easeInOut' }}
                   className="h-3 w-3 shrink-0 rounded-full bg-nova"
-                  style={{ boxShadow: '0 0 16px #ff6bd6' }}
+                  style={{ boxShadow: '0 0 16px rgba(255,255,255,.9)' }}
                 />
               )}
               <div className="min-w-0">

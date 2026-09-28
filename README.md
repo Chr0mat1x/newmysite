@@ -45,12 +45,15 @@ Set `PORT=12000 npm run dev` to pin the port.
 | Close any overlay | `Escape` |
 | Sign in | pick a handle and a display name (no password — this is an MVP) |
 
-Planets render procedurally from the user's name: hue, ring system, surface banding, and glow are
-all derived from a stable hash, so the same handle always produces the same world.
+Planets render procedurally from the user's name: ring system, surface texture, luminance, and glow
+are all derived from a stable hash, so the same handle always produces the same world. ORBIT is
+strictly monochrome, so a planet's identity comes from its **brightness and texture** rather than
+its colour — obsidian worlds and bone-white ones sit side by side on the same black void. On the
+launch screen you can pick which of eight worlds your seed resolves to.
 
 ### Supernovae
 
-A post with 10+ stars turns into a supernova: it is drawn with magenta plasma, appears in the
+A post with 10+ stars turns into a supernova: it flares into white plasma, appears in the
 galaxy-wide **nova** feed for 24 hours, and gets linked to other hot planets by faint constellation
 lines. This is the discovery mechanism — there is no algorithmic feed.
 
@@ -62,6 +65,10 @@ lines. This is the discovery mechanism — there is no algorithmic feed.
 - **TailwindCSS** for layout and chrome
 - **Framer Motion** for overlay and card transitions
 - **Canvas 2D** for the galaxy engine (starfield parallax, planets, orbit lanes, satellites, FX)
+
+The palette is intentionally black-and-white. Post imagery is rendered through a `grayscale`
+filter and the procedural engine emits only achromatic values (`hsla(0,0%,L%,A)`), so the whole
+frame stays neutral except for sub-pixel antialiasing.
 
 All state lives in `localStorage` behind a single reducer, so the app is a complete product
 without a backend. Swapping in Supabase means replacing `src/lib/storage.ts` and the load/save

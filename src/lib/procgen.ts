@@ -24,9 +24,7 @@ export type PlanetTexture = 'bands' | 'continents' | 'craters' | 'swirls' | 'ice
 
 export interface PlanetDesc {
   seed: number
-  hue: number
-  hue2: number
-  sat: number
+  /** base surface luminance 0..100 — this is what distinguishes one planet from another */
   light: number
   texture: PlanetTexture
   rings: boolean
@@ -36,17 +34,18 @@ export interface PlanetDesc {
   aura: number
 }
 
-export function generatePlanet(seed: number, hueOverride?: number): PlanetDesc {
+/** Monochrome helper: `g(60, .4)` -> `hsla(0,0%,60%,.4)`. */
+const g = (l: number, a = 1) => `hsla(0,0%,${l}%,${a})`
+
+export function generatePlanet(seed: number): PlanetDesc {
   const rnd = mulberry32(seed)
-  const hue = hueOverride ?? Math.floor(rnd() * 360)
   const textures: PlanetTexture[] = ['bands', 'continents', 'craters', 'swirls', 'ice']
   const roll = rnd()
   return {
     seed,
-    hue,
-    hue2: (hue + 40 + Math.floor(rnd() * 200)) % 360,
-    sat: 55 + Math.floor(rnd() * 40),
-    light: 45 + Math.floor(rnd() * 22),
+    // wide luminance spread so planets stay individually recognisable without colour:
+    // near-black obsidian worlds at one end, bright bone-white at the other
+    light: 16 + Math.floor(rnd() * 64),
     texture: textures[Math.floor(roll * textures.length)],
     rings: rnd() > 0.68,
     ringTilt: 0.16 + rnd() * 0.2,
@@ -64,7 +63,7 @@ const cache = new Map<string, HTMLCanvasElement>()
 export function planetSprite(desc: PlanetDesc, size: number): HTMLCanvasElement {
   const pad = Math.max(10, size * 0.42)
   const dim = Math.ceil(size + pad * 2)
-  const key = `${desc.seed}|${size}|${desc.hue}|${desc.texture}|${desc.rings}|${desc.aura.toFixed(2)}`
+  const key = `${desc.seed}|${size}|${desc.texture}|${desc.rings}|${desc.aura.toFixed(2)}`
   const hit = cache.get(key)
   if (hit && hit.width === dim) return hit
 
@@ -76,11 +75,11 @@ export function planetSprite(desc: PlanetDesc, size: number): HTMLCanvasElement 
   const R = size / 2
   const rnd = mulberry32(desc.seed ^ 0x9e3779b9)
 
-  // --- atmosphere halo ---------------------------------------------------
+  // --- atmosphere halo: a soft bone-white rim, no chroma -----------------
   const halo = ctx.createRadialGradient(c, c, R * 0.92, c, c, R + pad)
-  halo.addColorStop(0, `hsla(${desc.hue2},100%,68%,${0.5 * desc.aura})`)
-  halo.addColorStop(0.35, `hsla(${desc.hue},90%,60%,${0.22 * desc.aura})`)
-  halo.addColorStop(1, 'hsla(0,0%,0%,0)')
+  halo.addColorStop(0, g(92, 0.42 * desc.aura))
+  halo.addColorStop(0.35, g(70, 0.2 * desc.aura))
+  halo.addColorStop(1, g(0, 0))
   ctx.fillStyle = halo
   ctx.beginPath()
   ctx.arc(c, c, R + pad, 0, Math.PI * 2)
@@ -100,9 +99,9 @@ export function planetSprite(desc: PlanetDesc, size: number): HTMLCanvasElement 
   bctx.clip()
 
   const base = bctx.createRadialGradient(c - R * 0.3, c - R * 0.35, R * 0.1, c, c, R * 1.15)
-  base.addColorStop(0, `hsl(${desc.hue},${desc.sat}%,${Math.min(78, desc.light + 22)}%)`)
-  base.addColorStop(0.6, `hsl(${desc.hue},${desc.sat}%,${desc.light}%)`)
-  base.addColorStop(1, `hsl(${desc.hue2},${desc.sat}%,${Math.max(8, desc.light - 30)}%)`)
+  base.addColorStop(0, g(Math.min(88, desc.light + 26)))
+  base.addColorStop(0.6, g(desc.light))
+  base.addColorStop(1, g(Math.max(4, desc.light - 28)))
   bctx.fillStyle = base
   bctx.fillRect(0, 0, dim, dim)
 
@@ -116,9 +115,9 @@ export function planetSprite(desc: PlanetDesc, size: number): HTMLCanvasElement 
   bctx.clip()
   bctx.globalCompositeOperation = 'source-atop'
   const shade = bctx.createRadialGradient(c - R * 0.45, c - R * 0.5, R * 0.15, c, c, R * 1.25)
-  shade.addColorStop(0, 'rgba(255,255,255,.30)')
+  shade.addColorStop(0, 'rgba(255,255,255,.22)')
   shade.addColorStop(0.42, 'rgba(255,255,255,0)')
-  shade.addColorStop(1, 'rgba(0,0,4,.72)')
+  shade.addColorStop(1, 'rgba(0,0,0,.78)')
   bctx.fillStyle = shade
   bctx.fillRect(0, 0, dim, dim)
 
@@ -127,7 +126,7 @@ export function planetSprite(desc: PlanetDesc, size: number): HTMLCanvasElement 
   const rim = bctx.createRadialGradient(c, c, R * 0.55, c, c, R)
   rim.addColorStop(0, 'rgba(0,0,0,0)')
   rim.addColorStop(0.86, 'rgba(0,0,0,0)')
-  rim.addColorStop(1, `hsla(${desc.hue2},100%,72%,.55)`)
+  rim.addColorStop(1, g(100, 0.55))
   bctx.fillStyle = rim
   bctx.fillRect(0, 0, dim, dim)
   bctx.restore()
@@ -150,14 +149,14 @@ function drawSurface(
   desc: PlanetDesc,
   rnd: () => number,
 ) {
-  const light = Math.min(72, desc.light + 14)
+  const light = Math.min(84, desc.light + 14)
   switch (desc.texture) {
     case 'bands': {
       const n = 5 + Math.floor(rnd() * 6)
       for (let i = 0; i < n; i++) {
         const y = c - R + (i / n) * R * 2 + rnd() * R * 0.12
         const h = R * (0.06 + rnd() * 0.16)
-        ctx.fillStyle = `hsla(${desc.hue2},${desc.sat}%,${light - rnd() * 26}%,${0.18 + rnd() * 0.3})`
+        ctx.fillStyle = g(Math.max(6, light - rnd() * 30), 0.2 + rnd() * 0.32)
         ctx.beginPath()
         for (let x = -20; x <= dim + 20; x += 8) {
           const yy = y + Math.sin((x / R) * 0.9 + i) * R * 0.06
@@ -179,7 +178,7 @@ function drawSurface(
         const cx = c + (rnd() - 0.5) * R * 1.9
         const cy = c + (rnd() - 0.5) * R * 1.9
         const r = R * (0.1 + rnd() * 0.26)
-        ctx.fillStyle = `hsla(${desc.hue2},${desc.sat + 8}%,${30 + rnd() * 22}%,${0.55 + rnd() * 0.35})`
+        ctx.fillStyle = g(Math.max(8, desc.light - 22 - rnd() * 16), 0.55 + rnd() * 0.35)
         ctx.beginPath()
         const pts = 7 + Math.floor(rnd() * 5)
         for (let p = 0; p <= pts; p++) {
@@ -202,11 +201,11 @@ function drawSurface(
         const cx = c + Math.cos(a) * d
         const cy = c + Math.sin(a) * d
         const r = R * (0.03 + rnd() * 0.13)
-        ctx.fillStyle = `hsla(${desc.hue},${desc.sat}%,${Math.max(6, desc.light - 26)}%,.55)`
+        ctx.fillStyle = g(Math.max(4, desc.light - 26), 0.6)
         ctx.beginPath()
         ctx.arc(cx, cy, r, 0, Math.PI * 2)
         ctx.fill()
-        ctx.strokeStyle = `hsla(${desc.hue2},${desc.sat}%,${light + 12}%,.45)`
+        ctx.strokeStyle = g(Math.min(96, light + 14), 0.5)
         ctx.lineWidth = Math.max(1, R * 0.012)
         ctx.beginPath()
         ctx.arc(cx, cy, r, Math.PI * 0.75, Math.PI * 1.9)
@@ -217,7 +216,7 @@ function drawSurface(
     case 'swirls': {
       ctx.lineWidth = Math.max(1, R * 0.03)
       for (let i = 0; i < 22; i++) {
-        ctx.strokeStyle = `hsla(${desc.hue2},${desc.sat}%,${light - rnd() * 20}%,${0.12 + rnd() * 0.22})`
+        ctx.strokeStyle = g(Math.max(6, light - rnd() * 22), 0.12 + rnd() * 0.24)
         const cx = c + (rnd() - 0.5) * R * 1.2
         const cy = c + (rnd() - 0.5) * R * 1.2
         ctx.beginPath()
@@ -236,7 +235,7 @@ function drawSurface(
       for (let i = 0; i < 9; i++) {
         const y = c + (rnd() - 0.5) * R * 1.6
         const w = R * (0.6 + rnd() * 0.9)
-        ctx.fillStyle = `hsla(${desc.hue2},60%,${light + rnd() * 18}%,${0.2 + rnd() * 0.35})`
+        ctx.fillStyle = g(Math.min(96, light + rnd() * 22), 0.2 + rnd() * 0.36)
         ctx.beginPath()
         ctx.ellipse(c + (rnd() - 0.5) * R, y, w, R * (0.08 + rnd() * 0.14), (rnd() - 0.5) * 0.3, 0, Math.PI * 2)
         ctx.fill()
@@ -249,7 +248,7 @@ function drawSurface(
   for (let i = 0; i < 260; i++) {
     const a = rnd() * Math.PI * 2
     const d = Math.sqrt(rnd()) * R * 0.98
-    ctx.fillStyle = `hsla(${desc.hue2},30%,${rnd() > 0.5 ? 88 : 12}%,.06)`
+    ctx.fillStyle = rnd() > 0.5 ? 'rgba(255,255,255,.07)' : 'rgba(0,0,0,.07)'
     ctx.fillRect(c + Math.cos(a) * d, c + Math.sin(a) * d, 1.2, 1.2)
   }
 }
@@ -283,7 +282,7 @@ function drawRings(
     ctx.beginPath()
     ctx.ellipse(0, 0, rr, rr * desc.ringTilt, 0, 0, Math.PI * 2)
     ctx.lineWidth = R * (0.05 + 0.06 * Math.abs(Math.sin(i * 2.1)))
-    ctx.strokeStyle = `hsla(${i % 2 ? desc.hue2 : desc.hue},${desc.sat}%,${58 + 18 * Math.sin(i)}%,${back ? 0.2 : 0.42})`
+    ctx.strokeStyle = g(Math.min(96, 62 + 20 * Math.sin(i)), back ? 0.2 : 0.44)
     ctx.stroke()
   }
   ctx.restore()
