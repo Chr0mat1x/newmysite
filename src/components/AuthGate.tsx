@@ -23,15 +23,15 @@ export function AuthGate() {
   }
 
   return (
-    <div className="relative z-20 flex min-h-screen items-center justify-center px-4 py-10">
+    <div className="relative z-20 flex min-h-[100dvh] items-center justify-center px-4 pb-safe pt-safe py-6 sm:py-10">
       <motion.div
         initial={{ opacity: 0, y: 24, scale: 0.97 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1] }}
-        className="w-full max-w-md rounded-3xl border border-white/10 bg-black/40 p-7 backdrop-blur-2xl"
+        className="w-full max-w-md rounded-3xl border border-white/10 bg-black/40 p-5 backdrop-blur-2xl sm:p-7"
         style={{ boxShadow: '0 0 120px rgba(255,255,255,.09), inset 0 1px 0 rgba(255,255,255,.06)' }}
       >
-        <div className="mb-7 text-center">
+        <div className="mb-5 text-center sm:mb-7">
           <motion.div
             animate={{ rotate: 360 }}
             transition={{ duration: 40, repeat: Infinity, ease: 'linear' }}
@@ -39,11 +39,11 @@ export function AuthGate() {
           >
             <PlanetBadge seed={seed} size={64} />
           </motion.div>
-          <h1 className="font-display text-4xl font-bold tracking-[0.32em] text-white">ORBIT</h1>
+          <h1 className="font-display text-3xl font-bold tracking-[0.32em] text-white sm:text-4xl">ORBIT</h1>
           <p className="mt-2 font-mono text-[11px] uppercase tracking-[0.24em] text-pulse/80">
             your posts are satellites
           </p>
-          <p className="mx-auto mt-4 max-w-xs text-sm leading-relaxed text-white/55">
+          <p className="mx-auto mt-3 max-w-xs text-[13px] leading-relaxed text-white/55 sm:mt-4 sm:text-sm">
             Every user is a planet. Every post orbits them. Fly through the galaxy instead of scrolling a feed.
           </p>
         </div>
@@ -64,6 +64,7 @@ export function AuthGate() {
                   onChange={(e) => setHandle(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && submit()}
                   placeholder="stardust"
+                  autoComplete="username"
                   className="input"
                 />
               </Field>
@@ -73,6 +74,7 @@ export function AuthGate() {
                   onChange={(e) => setName(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && submit()}
                   placeholder="Dust of Stars"
+                  autoComplete="nickname"
                   className="input"
                 />
               </Field>
@@ -87,14 +89,14 @@ export function AuthGate() {
                         sfx.hover()
                       }}
                       aria-label={`world ${v + 1}`}
-                      className={`h-11 w-11 rounded-full border transition-transform hover:scale-110 ${
+                      className={`h-12 w-12 rounded-full border transition-transform hover:scale-110 active:scale-95 ${
                         variant === v ? 'border-white' : 'border-white/15'
                       }`}
                       style={{
                         boxShadow: variant === v ? '0 0 16px rgba(255,255,255,.55)' : 'none',
                       }}
                     >
-                      <PlanetBadge seed={planetSeed(handle || 'orbit', name || 'traveler', v)} size={40} />
+                      <PlanetBadge seed={planetSeed(handle || 'orbit', name || 'traveler', v)} size={44} />
                     </button>
                   ))}
                 </div>
@@ -102,13 +104,13 @@ export function AuthGate() {
               <button
                 onClick={submit}
                 disabled={!handle.trim()}
-                className="mt-2 w-full rounded-xl bg-gradient-to-r from-pulse to-glow py-3 font-display text-sm font-semibold tracking-wider text-black transition-all hover:brightness-110 disabled:opacity-30"
+                className="tap mt-2 w-full rounded-xl bg-gradient-to-r from-pulse to-glow py-3 font-display text-sm font-semibold tracking-wider text-black transition-all hover:brightness-110 active:scale-[0.98] disabled:opacity-30"
               >
                 LAUNCH INTO ORBIT
               </button>
               <button
                 onClick={() => setMode('pick')}
-                className="w-full py-2 font-mono text-[11px] uppercase tracking-[0.2em] text-white/40 transition-colors hover:text-white/80"
+                className="tap w-full py-2 font-mono text-[11px] uppercase tracking-[0.2em] text-white/40 transition-colors hover:text-white/80 active:text-white/80"
               >
                 or enter as an existing planet →
               </button>
@@ -121,7 +123,7 @@ export function AuthGate() {
               exit={{ opacity: 0 }}
               className="space-y-2"
             >
-              <div className="mb-2 max-h-64 space-y-1.5 overflow-y-auto pr-1">
+              <div className="mb-2 max-h-[45dvh] space-y-1.5 overflow-y-auto overscroll-contain pr-1">
                 {users
                   .filter((u) => u.mock)
                   .slice(0, 14)
@@ -130,7 +132,7 @@ export function AuthGate() {
                       key={u.id}
                       onClick={() => login(u.handle, u.name)}
                       onMouseEnter={() => sfx.hover()}
-                      className="flex w-full items-center gap-3 rounded-xl border border-white/5 bg-white/[0.03] p-2 text-left transition-all hover:border-pulse/40 hover:bg-white/[0.07]"
+                      className="tap flex w-full items-center gap-3 rounded-xl border border-white/5 bg-white/[0.03] p-2 text-left transition-all hover:border-pulse/40 hover:bg-white/[0.07] active:bg-white/[0.07]"
                     >
                       <PlanetBadge seed={u.seed} size={32} />
                       <div className="min-w-0">
@@ -142,7 +144,7 @@ export function AuthGate() {
               </div>
               <button
                 onClick={() => setMode('enter')}
-                className="w-full py-2 font-mono text-[11px] uppercase tracking-[0.2em] text-white/40 transition-colors hover:text-white/80"
+                className="tap w-full py-2 font-mono text-[11px] uppercase tracking-[0.2em] text-white/40 transition-colors hover:text-white/80 active:text-white/80"
               >
                 ← create a new planet
               </button>

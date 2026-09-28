@@ -72,7 +72,8 @@ export function PostCard({ post, index = 0 }: { post: Post; index?: number }) {
           {mine && (
             <button
               onClick={() => deletePost(post.id)}
-              className="rounded-lg px-2 py-1 font-mono text-[10px] text-white/25 opacity-0 transition-all hover:bg-white/5 hover:text-red-300/80 group-hover:opacity-100"
+              aria-label="eject post"
+              className="tap shrink-0 rounded-lg px-2 py-1 font-mono text-[10px] text-white/30 transition-all hover:bg-white/5 hover:text-red-300/80 active:bg-white/5 active:text-red-300/80 sm:opacity-0 sm:group-hover:opacity-100"
             >
               eject
             </button>
@@ -112,11 +113,12 @@ export function PostCard({ post, index = 0 }: { post: Post; index?: number }) {
           </div>
         )}
 
-        <footer className="mt-3.5 flex items-center gap-2">
+        <footer className="mt-3.5 flex flex-wrap items-center gap-2">
           <button
             onMouseEnter={() => sfx.hover()}
             onClick={() => toggleLike(post.id)}
-            className={`flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs transition-all active:scale-95 ${
+            aria-label={liked ? 'remove star' : 'star this post'}
+            className={`tap flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs transition-all active:scale-95 ${
               liked
                 ? 'border-nova/50 bg-nova/15 text-nova'
                 : 'border-white/10 bg-white/[0.03] text-white/60 hover:border-pulse/40 hover:text-white'
@@ -131,13 +133,14 @@ export function PostCard({ post, index = 0 }: { post: Post; index?: number }) {
               sfx.hover()
               setShowSignals((s) => !s)
             }}
-            className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-1.5 text-xs text-white/60 transition-all hover:border-glow/40 hover:text-white active:scale-95"
+            aria-label="toggle signals"
+            className="tap flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-1.5 text-xs text-white/60 transition-all hover:border-glow/40 hover:text-white active:scale-95"
           >
             <SignalIcon />
             <span className="font-mono">{post.signals.length}</span>
           </button>
 
-          <span className="ml-auto font-mono text-[10px] text-white/25">
+          <span className="font-mono text-[10px] text-white/25 max-sm:w-full max-sm:pt-0.5 sm:ml-auto">
             {nova
               ? `visible galaxy-wide · ${Math.max(1, Math.ceil((SUPERNOVA_TTL - (Date.now() - (post.supernovaAt ?? 0))) / 3600000))}h left`
               : `${Math.max(0, SUPERNOVA_THRESHOLD - post.likes.length)} to supernova`}
@@ -184,7 +187,7 @@ export function PostCard({ post, index = 0 }: { post: Post; index?: number }) {
                     <button
                       onClick={submitSignal}
                       disabled={!draft.trim()}
-                      className="rounded-xl bg-gradient-to-r from-pulse to-glow px-3 py-2 text-xs font-semibold text-black disabled:opacity-30"
+                      className="tap shrink-0 rounded-xl bg-gradient-to-r from-pulse to-glow px-3 py-2 text-xs font-semibold text-black active:scale-95 disabled:opacity-30"
                     >
                       Send
                     </button>

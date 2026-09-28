@@ -7,11 +7,13 @@ import { OrbitView } from './components/OrbitView'
 import { Composer } from './components/Composer'
 import { SupernovaFeed } from './components/SupernovaFeed'
 import { MiniMap, type MiniPlanet, MINI_WORLD } from './components/MiniMap'
+import { MobileMenu } from './components/MobileMenu'
 import { Toasts, type Toast } from './components/Toasts'
 import { Onboarding } from './components/Onboarding'
 import { PlanetBadge } from './components/PlanetBadge'
 import { layoutGalaxy } from './engine/layout'
 import type { RenderStats } from './engine/GalaxyCanvas'
+import { useIsMobile } from './lib/useMedia'
 import { isMuted, setMuted, startAmbient, resumeAudio, sfx } from './lib/audio'
 
 function Orbit() {
@@ -25,6 +27,8 @@ function Orbit() {
   const [toasts, setToasts] = useState<Toast[]>([])
   const [stats, setStats] = useState<RenderStats>({ fps: 60, visible: 0, total: 0 })
   const [muted, setMute] = useState(isMuted())
+  const [menuOpen, setMenuOpen] = useState(false)
+  const isMobile = useIsMobile()
   const novaCount = useRef<number | null>(null)
 
   const layouts = useMemo(() => {
@@ -119,7 +123,11 @@ function Orbit() {
           if (open) return false
           setNovaOpen((n) => {
             if (n) return false
-            setSelected(null)
+            setMenuOpen((m) => {
+              if (m) return false
+              setSelected(null)
+              return m
+            })
             return n
           })
           return open
@@ -134,6 +142,27 @@ function Orbit() {
     setSelected(id)
     handleRef.current?.select(id)
     handleRef.current?.flyToPlanet(id, 1.6)
+  }, [])
+
+  // A tap opens the orbit panel on pointerup; the browser then fires a synthetic
+  // click at the same spot, which would land on the just-mounted backdrop and
+  // close the panel instantly. Ignore backdrop clicks for a beat after a visit.
+  const visitGuard = useRef(0)
+  const visitWithGuard = useCallback(
+    (id: string | null) => {
+      // empty-space taps deselect immediately; only real selections are guarded
+      if (!id) {
+        setSelected(null)
+        return
+      }
+      visitGuard.current = performance.now()
+      visit(id)
+    },
+    [visit],
+  )
+  const closeIfSettled = useCallback(() => {
+    if (performance.now() - visitGuard.current < 400) return
+    setSelected(null)
   }, [])
 
   const meStats = useMemo(() => {
@@ -155,7 +184,7 @@ function Orbit() {
 
   return (
     <div className="relative h-[100dvh] w-full overflow-hidden bg-void font-body text-white">
-      <GalaxyCanvas ref={handleRef} onHover={setHovered} onSelect={setSelected} onStats={setStats} />
+      <GalaxyCanvas ref={handleRef} onHover={setHovered} onSelect={visitWithGuard} onStats={setStats} />
 
       {/* vignette for the cinematic feel */}
       <div
@@ -164,11 +193,11 @@ function Orbit() {
       />
 
       {/* ---------- top bar ---------- */}
-      <header className="pointer-events-none absolute inset-x-0 top-0 z-20 flex items-start justify-between gap-3 p-3 sm:p-5">
-        <div className="pointer-events-auto flex items-center gap-3">
+      <header className="pointer-events-none absolute inset-x-0 top-0 z-20 flex items-start justify-between gap-2 p-3 pt-safe sm:gap-3 sm:p-5">
+        <div className="pointer-events-auto flex items-center gap-2 sm:gap-3">
           <button
             onClick={() => handleRef.current?.centerOnMe()}
-            className="group flex items-center gap-3 rounded-2xl border border-white/10 bg-black/45 px-3 py-2 backdrop-blur-xl transition-colors hover:border-pulse/40"
+            className="tap group flex items-center gap-3 rounded-2xl border border-white/10 bg-black/45 px-3 py-2 backdrop-blur-xl transition-colors hover:border-pulse/40 active:border-pulse/40"
           >
             <svg width="22" height="22" viewBox="0 0 32 32" className="transition-transform group-hover:rotate-180 duration-700">
               <circle cx="16" cy="16" r="6.5" fill="#f5f5f5" />
@@ -185,7 +214,7 @@ function Orbit() {
             </svg>
             <div className="text-left">
               <div className="font-display text-sm font-bold tracking-[0.28em] text-white">ORBIT</div>
-              <div className="font-mono text-[9px] uppercase tracking-[0.16em] text-white/35">
+              <div className="hidden font-mono text-[9px] uppercase tracking-[0.16em] text-white/35 sm:block">
                 your posts are satellites
               </div>
             </div>
@@ -211,7 +240,8 @@ function Orbit() {
         <div className="pointer-events-auto flex items-center gap-2">
           <button
             onClick={() => setNovaOpen(true)}
-            className="relative flex items-center gap-2 rounded-2xl border border-nova/40 bg-black/45 px-3 py-2.5 backdrop-blur-xl transition-all hover:border-nova hover:bg-nova/10"
+            aria-label={`${supernovas.length} supernovae`}
+            className="tap relative flex items-center gap-2 rounded-2xl border border-nova/40 bg-black/45 px-3 py-2.5 backdrop-blur-xl transition-all hover:border-nova hover:bg-nova/10 active:border-nova"
           >
             <motion.span
               animate={{ scale: supernovas.length ? [1, 1.25, 1] : 1 }}
@@ -231,17 +261,28 @@ function Orbit() {
               setMute(next)
               if (!next) resumeAudio()
             }}
-            className="rounded-2xl border border-white/10 bg-black/45 px-3 py-2.5 backdrop-blur-xl transition-colors hover:border-glow/40"
-            title={muted ? 'unmute' : 'mute'}
+            aria-label={muted ? 'unmute' : 'mute'}
+            className="tap rounded-2xl border border-white/10 bg-black/45 px-3 py-2.5 backdrop-blur-xl transition-colors hover:border-glow/40 active:border-glow/40"
           >
             {muted ? '🔇' : '🔊'}
           </button>
+
+          {/* phone-only: everything the desktop HUD shows inline lives in here */}
+          {currentUser && (
+            <button
+              onClick={() => setMenuOpen(true)}
+              aria-label="open navigator"
+              className="tap rounded-2xl border border-white/10 bg-black/45 px-3 py-2.5 backdrop-blur-xl transition-colors active:border-pulse/40 sm:hidden"
+            >
+              ☰
+            </button>
+          )}
         </div>
       </header>
 
-      {/* ---------- hover tooltip ---------- */}
+      {/* ---------- hover tooltip (desktop only — touch has no hover) ---------- */}
       <AnimatePresence>
-        {hoveredUser && !selected && (
+        {hoveredUser && !selected && !isMobile && (
           <motion.div
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
@@ -256,9 +297,9 @@ function Orbit() {
         )}
       </AnimatePresence>
 
-      {/* ---------- bottom: minimap + leaders ---------- */}
-      <div className="pointer-events-none absolute bottom-0 left-0 z-20 flex items-end gap-3 p-3 sm:p-5">
-        <div className="pointer-events-auto hidden sm:block">
+      {/* ---------- bottom: minimap + leaders (desktop) ---------- */}
+      <div className="pointer-events-none absolute bottom-0 left-0 z-20 hidden items-end gap-3 p-5 sm:flex">
+        <div className="pointer-events-auto">
           <MiniMap
             planets={minimap}
             cam={handleRef.current?.engine?.cam ?? { x: 0, y: 0, zoom: 1 }}
@@ -288,8 +329,44 @@ function Orbit() {
         </div>
       </div>
 
-      {/* ---------- flight console (bottom right) ---------- */}
-      <div className="pointer-events-none absolute bottom-3 right-3 z-20 flex flex-col items-end gap-2 sm:bottom-5 sm:right-5">
+      {/* ---------- phone toolbar: the core verbs, thumb-reachable ---------- */}
+      {currentUser && (
+        <div aria-label="quick actions" className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex items-end justify-center gap-2 px-3 pb-safe sm:hidden">
+          <div className="pointer-events-auto mb-3 flex w-full max-w-sm items-stretch gap-2 rounded-2xl border border-white/10 bg-black/60 p-2 backdrop-blur-xl">
+            <button
+              onClick={() => visit(currentUser.id)}
+              className="tap flex flex-1 flex-col items-center justify-center rounded-xl py-1.5 font-mono text-[9px] uppercase tracking-[0.14em] text-white/55 transition-colors active:bg-white/10 active:text-white"
+            >
+              <span className="text-base leading-none">◉</span>
+              <span className="mt-1">my orbit</span>
+            </button>
+            <button
+              onClick={() => {
+                sfx.launch()
+                const others = layouts.filter((l) => l.id !== currentUser.id)
+                const pick = others[Math.floor(Math.random() * others.length)]
+                if (pick) visit(pick.id)
+              }}
+              className="tap flex flex-1 flex-col items-center justify-center rounded-xl py-1.5 font-mono text-[9px] uppercase tracking-[0.14em] text-white/55 transition-colors active:bg-white/10 active:text-white"
+            >
+              <span className="text-base leading-none">⇢</span>
+              <span className="mt-1">fly</span>
+            </button>
+            <motion.button
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              onClick={() => setComposerOpen(true)}
+              className="tap flex flex-[1.4] items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-glow via-pulse to-nova px-3 font-display text-[11px] font-bold tracking-wider text-black transition-all active:scale-95"
+              style={{ boxShadow: '0 0 28px rgba(255,255,255,.28)' }}
+            >
+              + SATELLITE
+            </motion.button>
+          </div>
+        </div>
+      )}
+
+      {/* ---------- flight console (desktop) ---------- */}
+      <div className="pointer-events-none absolute bottom-5 right-5 z-20 hidden flex-col items-end gap-2 sm:flex">
         <AnimatePresence>
           {currentUser && (
             <motion.button
@@ -327,9 +404,17 @@ function Orbit() {
       </div>
 
       {/* ---------- panels ---------- */}
-      <OrbitView userId={selected} onClose={() => setSelected(null)} onCompose={() => setComposerOpen(true)} />
+      <OrbitView userId={selected} onClose={closeIfSettled} onCompose={() => setComposerOpen(true)} />
       <Composer open={composerOpen} onClose={() => setComposerOpen(false)} />
       <SupernovaFeed open={novaOpen} onClose={() => setNovaOpen(false)} onVisit={visit} />
+      <MobileMenu
+        open={menuOpen}
+        onClose={() => setMenuOpen(false)}
+        planets={minimap}
+        cam={handleRef.current?.engine?.cam ?? { x: 0, y: 0, zoom: 1 }}
+        leaders={leaders}
+        onJump={visit}
+      />
       <Toasts toasts={toasts} onDismiss={(id) => setToasts((p) => p.filter((t) => t.id !== id))} />
       <Onboarding
         open={onboarding}

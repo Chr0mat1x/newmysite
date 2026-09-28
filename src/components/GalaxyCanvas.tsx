@@ -3,6 +3,7 @@ import { GalaxyEngine, type RenderStats } from '../engine/GalaxyCanvas'
 import { layoutGalaxy } from '../engine/layout'
 import { useGalaxy } from '../state/store'
 import type { Post, User } from '../types'
+import { clamp } from '../lib/math'
 
 export interface GalaxyHandle {
   engine: GalaxyEngine | null
@@ -108,15 +109,22 @@ export const GalaxyCanvas = forwardRef<GalaxyHandle, Props>(function GalaxyCanva
     eng.setData(seed.layouts, seed.users, seed.posts)
 
     const resize = () => {
-      const dpr = Math.min(window.devicePixelRatio || 1, 2)
       const w = canvas.clientWidth
       const h = canvas.clientHeight
+      // Retina phones report dpr 3–4; the backing store grows with the square of
+      // dpr while the visible detail barely changes at arm's length. Cap it so a
+      // small screen still renders crisply without paying 4–9x the fill cost.
+      const cap = w <= 480 ? 2 : w <= 900 ? 1.5 : 2
+      const dpr = Math.min(window.devicePixelRatio || 1, cap)
       canvas.width = Math.floor(w * dpr)
       canvas.height = Math.floor(h * dpr)
       eng.resize(w, h, dpr)
     }
     resize()
     window.addEventListener('resize', resize)
+    // follows the window between displays / when the browser zoom changes dpr
+    const dprQuery = window.matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`)
+    dprQuery.addEventListener('change', resize)
 
     // start centred on me (or on the richest planet for a guest)
     const me = currentUser ? seed.layouts.find((l) => l.id === currentUser.id) : null
@@ -127,31 +135,92 @@ export const GalaxyCanvas = forwardRef<GalaxyHandle, Props>(function GalaxyCanva
     eng.snap(start.x, start.y, me ? 1.0 : 1.15)
 
     // --- pointer interaction ---------------------------------------------
+    // Tracks every active pointer so two fingers can pinch-zoom while a single
+    // finger pans. A tap is only treated as a selection when it is short and
+    // barely moves — fingers always drift a few pixels on a touchscreen.
+    const active = new Map<number, { x: number; y: number }>()
     let dragging = false
     let moved = false
     let last = { x: 0, y: 0 }
     let pointer = { x: -1, y: -1 }
+    let downAt = 0
+    let pinch: { dist: number; zoom: number; mid: { x: number; y: number } } | null = null
+
+    const TAP_SLOP = 10
 
     const pos = (e: PointerEvent) => {
       const r = canvas.getBoundingClientRect()
       return { x: e.clientX - r.left, y: e.clientY - r.top }
     }
 
+    const pinchState = () => {
+      const [a, b] = [...active.values()]
+      if (!a || !b) return null
+      return {
+        dist: Math.hypot(b.x - a.x, b.y - a.y),
+        mid: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 },
+      }
+    }
+
     const onDown = (e: PointerEvent) => {
       if (!interactive) return
-      dragging = true
-      moved = false
-      last = pos(e)
-      canvas.setPointerCapture(e.pointerId)
+      const p = pos(e)
+      active.set(e.pointerId, p)
+      // capture keeps events flowing when the finger leaves the canvas, but it
+      // throws for synthetic/non-active pointers — never let that kill the tap
+      try {
+        canvas.setPointerCapture(e.pointerId)
+      } catch {
+        /* ignore */
+      }
+      if (active.size === 1) {
+        dragging = true
+        moved = false
+        downAt = performance.now()
+        last = p
+        pinch = null
+      } else if (active.size === 2) {
+        const s = pinchState()
+        if (s) {
+          dragging = false
+          moved = true // a pinch is never a tap
+          pinch = { dist: Math.max(1, s.dist), zoom: eng.target.zoom, mid: s.mid }
+        }
+      }
     }
     const onMove = (e: PointerEvent) => {
-      pointer = pos(e)
+      const p = pos(e)
+      if (!active.has(e.pointerId)) {
+        // plain mouse hover — no button held and not touching
+        if (e.pointerType === 'mouse') pointer = p
+        return
+      }
+      active.set(e.pointerId, p)
       if (!interactive) return
+
+      if (active.size >= 2) {
+        const s = pinchState()
+        if (!s) return
+        if (!pinch) pinch = { dist: Math.max(1, s.dist), zoom: eng.target.zoom, mid: s.mid }
+        // zoom about the midpoint, and let the midpoint drag the camera too
+        const z = clamp(pinch.zoom * (s.dist / pinch.dist), 0.28, 3.4)
+        eng.target.zoom = z
+        eng.flight = null
+        const dx = (s.mid.x - pinch.mid.x) / z
+        const dy = (s.mid.y - pinch.mid.y) / z
+        eng.cam.x -= dx
+        eng.cam.y -= dy
+        eng.target.x = eng.cam.x
+        eng.target.y = eng.cam.y
+        pinch.mid = s.mid
+        last = p
+        return
+      }
+
       if (dragging) {
-        const p = pos(e)
         const dx = (p.x - last.x) / eng.cam.zoom
         const dy = (p.y - last.y) / eng.cam.zoom
-        if (Math.abs(p.x - last.x) + Math.abs(p.y - last.y) > 2) moved = true
+        if (Math.abs(p.x - last.x) + Math.abs(p.y - last.y) > TAP_SLOP) moved = true
         eng.cam.x -= dx
         eng.cam.y -= dy
         eng.target.x = eng.cam.x
@@ -161,14 +230,24 @@ export const GalaxyCanvas = forwardRef<GalaxyHandle, Props>(function GalaxyCanva
     }
     const onUp = (e: PointerEvent) => {
       if (!interactive) return
-      const wasDrag = moved
-      dragging = false
+      const wasPinch = active.size >= 2 || pinch !== null
+      active.delete(e.pointerId)
       try {
         canvas.releasePointerCapture(e.pointerId)
       } catch {
         /* ignore */
       }
-      if (wasDrag) return
+      if (active.size === 0) {
+        dragging = false
+        pinch = null
+      } else if (active.size === 1) {
+        // lifting one finger of a pinch: re-anchor the survivor so the camera
+        // does not jump when it becomes a pan again
+        const [only] = [...active.values()]
+        last = only
+      }
+      if (wasPinch || moved) return
+      if (performance.now() - downAt > 500) return
       const p = pos(e)
       const id = eng.planetAt(p.x, p.y)
       onSelect(id)
@@ -186,12 +265,16 @@ export const GalaxyCanvas = forwardRef<GalaxyHandle, Props>(function GalaxyCanva
       eng.target.zoom = z
       eng.flight = null
     }
+    // iOS Safari still fires gesture events for pinch on some versions
+    const onGesture = (e: Event) => e.preventDefault()
 
     canvas.addEventListener('pointerdown', onDown)
     canvas.addEventListener('pointermove', onMove)
     canvas.addEventListener('pointerup', onUp)
     canvas.addEventListener('pointercancel', onUp)
     canvas.addEventListener('wheel', onWheel, { passive: false })
+    canvas.addEventListener('gesturestart', onGesture)
+    canvas.addEventListener('gesturechange', onGesture)
 
     // --- render loop ------------------------------------------------------
     let raf = 0
@@ -237,11 +320,14 @@ export const GalaxyCanvas = forwardRef<GalaxyHandle, Props>(function GalaxyCanva
     return () => {
       cancelAnimationFrame(raf)
       window.removeEventListener('resize', resize)
+      dprQuery.removeEventListener('change', resize)
       canvas.removeEventListener('pointerdown', onDown)
       canvas.removeEventListener('pointermove', onMove)
       canvas.removeEventListener('pointerup', onUp)
       canvas.removeEventListener('pointercancel', onUp)
       canvas.removeEventListener('wheel', onWheel)
+      canvas.removeEventListener('gesturestart', onGesture)
+      canvas.removeEventListener('gesturechange', onGesture)
       engineRef.current = null
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

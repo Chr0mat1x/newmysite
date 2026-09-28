@@ -87,7 +87,7 @@ export function MiniMap({
           }}
         />
 
-        <div className="pointer-events-none absolute bottom-1 left-0 right-0 text-center font-mono text-[8px] uppercase tracking-[0.2em] text-white/30">
+        <div className="pointer-events-none absolute bottom-1 left-0 right-0 text-center font-mono text-[9px] uppercase tracking-[0.18em] text-white/35">
           galaxy map
         </div>
       </div>

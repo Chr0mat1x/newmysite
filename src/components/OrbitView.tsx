@@ -4,6 +4,7 @@ import { useGalaxy } from '../state/store'
 import { PlanetBadge } from './PlanetBadge'
 import { PostCard } from './PostCard'
 import { sfx } from '../lib/audio'
+import { useIsMobile } from '../lib/useMedia'
 
 interface Props {
   userId: string | null
@@ -14,6 +15,7 @@ interface Props {
 export function OrbitView({ userId, onClose, onCompose }: Props) {
   const { userById, postsOf, currentUser, updateProfile, toggleLike, state } = useGalaxy()
   const user = userId ? userById(userId) : null
+  const isMobile = useIsMobile()
   const posts = useMemo(() => (userId ? postsOf(userId) : []), [userId, postsOf, state.posts])
 
   const stats = useMemo(() => {
@@ -35,30 +37,44 @@ export function OrbitView({ userId, onClose, onCompose }: Props) {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="fixed inset-0 z-30 bg-gradient-to-r from-black/20 to-black/70 lg:hidden"
+            className="fixed inset-0 z-30 bg-black/55 lg:bg-gradient-to-r lg:from-black/20 lg:to-black/70"
           />
           <motion.aside
             key="panel"
-            initial={{ x: '105%', opacity: 0.4 }}
-            animate={{ x: 0, opacity: 1 }}
-            exit={{ x: '105%', opacity: 0.2 }}
-            transition={{ duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
-            className="fixed bottom-0 right-0 top-0 z-40 flex w-full flex-col border-l border-white/10 bg-abyss/88 backdrop-blur-2xl sm:w-[440px] lg:w-[470px]"
+            initial={isMobile ? { y: '100%', opacity: 0.6 } : { x: '105%', opacity: 0.4 }}
+            animate={isMobile ? { y: 0, opacity: 1 } : { x: 0, opacity: 1 }}
+            exit={isMobile ? { y: '100%', opacity: 0.4 } : { x: '105%', opacity: 0.2 }}
+            transition={{ duration: isMobile ? 0.42 : 0.55, ease: [0.16, 1, 0.3, 1] }}
+            className="fixed z-40 flex flex-col border-white/10 bg-abyss/88 backdrop-blur-2xl max-sm:inset-x-0 max-sm:bottom-0 max-sm:max-h-[88dvh] max-sm:rounded-t-3xl max-sm:border-t sm:bottom-0 sm:right-0 sm:top-0 sm:w-[440px] sm:border-l lg:w-[470px]"
             style={{ boxShadow: '-40px 0 120px rgba(0,0,0,.7)' }}
           >
+            {/* grab handle — phone only, dragging down dismisses the sheet */}
+            <motion.div
+              drag="y"
+              dragConstraints={{ top: 0, bottom: 0 }}
+              dragElastic={{ top: 0, bottom: 0.35 }}
+              onDragEnd={(_, info) => {
+                if (info.offset.y > 90 || info.velocity.y > 500) onClose()
+              }}
+              className="flex shrink-0 cursor-grab justify-center pb-1 pt-3 active:cursor-grabbing sm:hidden"
+            >
+              <div className="h-1 w-10 rounded-full bg-white/25" />
+            </motion.div>
+
             {/* glowing top edge */}
             <div
               className="pointer-events-none absolute inset-x-0 top-0 h-40 opacity-50"
               style={{ background: `radial-gradient(ellipse at 50% -30%, rgba(255,255,255,.10), transparent 70%)` }}
             />
 
-            <header className="relative border-b border-white/[0.07] px-5 pb-5 pt-6">
+            <header className="relative shrink-0 border-b border-white/[0.07] px-5 pb-5 pt-4 sm:pt-6">
               <button
                 onClick={() => {
                   sfx.click()
                   onClose()
                 }}
-                className="absolute right-4 top-4 rounded-lg px-2 py-1 text-white/40 transition-colors hover:bg-white/5 hover:text-white"
+                aria-label="close orbit"
+                className="tap absolute right-3 top-3 rounded-lg px-3 text-white/40 transition-colors hover:bg-white/5 hover:text-white active:bg-white/5 active:text-white"
               >
                 ✕
               </button>
@@ -67,13 +83,14 @@ export function OrbitView({ userId, onClose, onCompose }: Props) {
                 <motion.div
                   animate={{ y: [0, -5, 0], rotate: [0, 4, 0] }}
                   transition={{ duration: 7, repeat: Infinity, ease: 'easeInOut' }}
+                  className="shrink-0"
                 >
-                  <PlanetBadge seed={user.seed} size={78} />
+                  <PlanetBadge seed={user.seed} size={72} />
                 </motion.div>
-                <div className="min-w-0 flex-1">
+                <div className="min-w-0 flex-1 pr-8">
                   <h2 className="truncate font-display text-xl font-semibold text-white">{user.name}</h2>
-                  <div className="font-mono text-[11px] text-white/45">@{user.handle}</div>
-                  <div className="mt-2 flex gap-3 font-mono text-[10px] text-white/50">
+                  <div className="truncate font-mono text-[11px] text-white/45">@{user.handle}</div>
+                  <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 font-mono text-[10px] text-white/50">
                     <span>
                       <b className="text-white/85">{posts.length}</b> satellites
                     </span>
@@ -132,7 +149,7 @@ export function OrbitView({ userId, onClose, onCompose }: Props) {
                 {isMe ? (
                   <button
                     onClick={onCompose}
-                    className="flex-1 rounded-xl bg-gradient-to-r from-pulse to-glow py-2.5 font-display text-xs font-semibold tracking-wide text-black transition-all hover:brightness-110"
+                    className="tap flex-1 rounded-xl bg-gradient-to-r from-pulse to-glow py-2.5 font-display text-xs font-semibold tracking-wide text-black transition-all hover:brightness-110 active:scale-[0.98]"
                   >
                     + LAUNCH A SATELLITE
                   </button>
@@ -144,7 +161,7 @@ export function OrbitView({ userId, onClose, onCompose }: Props) {
                         if (posts[0]) toggleLike(posts[0].id)
                       }}
                       disabled={!posts[0] || isFollowed}
-                      className="flex-1 rounded-xl border border-white/12 bg-white/[0.04] py-2.5 font-display text-xs font-semibold tracking-wide text-white/80 transition-all hover:border-nova/50 hover:text-white disabled:opacity-30"
+                      className="tap flex-1 rounded-xl border border-white/12 bg-white/[0.04] py-2.5 font-display text-xs font-semibold tracking-wide text-white/80 transition-all hover:border-nova/50 hover:text-white active:bg-white/[0.08] disabled:opacity-30"
                     >
                       ★ STAR THEIR LATEST
                     </button>
@@ -153,7 +170,7 @@ export function OrbitView({ userId, onClose, onCompose }: Props) {
                         sfx.click()
                         onClose()
                       }}
-                      className="rounded-xl border border-white/12 bg-white/[0.04] px-4 py-2.5 font-mono text-[11px] text-white/60 hover:text-white"
+                      className="tap rounded-xl border border-white/12 bg-white/[0.04] px-4 py-2.5 font-mono text-[11px] text-white/60 hover:text-white active:bg-white/[0.08]"
                     >
                       return
                     </button>
@@ -164,14 +181,14 @@ export function OrbitView({ userId, onClose, onCompose }: Props) {
               {isMe && (
                 <button
                   onClick={() => updateProfile({ seed: (user.seed ^ 0x9e3779b9) >>> 0 })}
-                  className="mt-2 w-full rounded-xl border border-white/[0.07] py-2 font-mono text-[10px] uppercase tracking-[0.2em] text-white/40 transition-colors hover:text-white/80"
+                  className="tap mt-2 w-full rounded-xl border border-white/[0.07] py-2 font-mono text-[10px] uppercase tracking-[0.2em] text-white/40 transition-colors hover:text-white/80 active:bg-white/5"
                 >
                   ⟳ remix my planet
                 </button>
               )}
             </header>
 
-            <div className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
+            <div className="flex-1 space-y-3 overflow-y-auto overscroll-contain px-4 py-4 pb-[calc(env(safe-area-inset-bottom)+1rem)]">
               {posts.length === 0 && (
                 <div className="flex h-full flex-col items-center justify-center px-6 text-center">
                   <PlanetBadge seed={user.seed} size={90} />
@@ -182,7 +199,7 @@ export function OrbitView({ userId, onClose, onCompose }: Props) {
                   {isMe && (
                     <button
                       onClick={onCompose}
-                      className="mt-4 rounded-xl bg-gradient-to-r from-pulse to-glow px-4 py-2 text-xs font-semibold text-black"
+                      className="tap mt-4 rounded-xl bg-gradient-to-r from-pulse to-glow px-4 py-2 text-xs font-semibold text-black active:scale-95"
                     >
                       launch your first satellite
                     </button>

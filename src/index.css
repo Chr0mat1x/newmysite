@@ -49,11 +49,32 @@
 
 @layer components {
   .input {
-    @apply w-full rounded-xl border border-white/10 bg-white/[0.04] px-3.5 py-2.5 text-sm text-white/90 outline-none transition-all placeholder:text-white/25;
+    @apply w-full rounded-xl border border-white/10 bg-white/[0.04] px-3.5 py-2.5 text-white/90 outline-none transition-all placeholder:text-white/25;
+    font-size: 16px; /* prevents iOS Safari from zooming the page on focus */
   }
   .input:focus {
     @apply border-pulse/60 bg-white/[0.07];
     box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.12);
+  }
+
+  /* minimum comfortable tap target on touch screens (Apple HIG 44pt) */
+  .tap {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
+/* ---------- safe areas (notch / home indicator) ---------- */
+@layer utilities {
+  .pt-safe {
+    padding-top: max(env(safe-area-inset-top), 0px);
+  }
+  .pb-safe {
+    padding-bottom: max(env(safe-area-inset-bottom), 0px);
+  }
+  .px-safe {
+    padding-left: max(env(safe-area-inset-left), 0px);
+    padding-right: max(env(safe-area-inset-right), 0px);
   }
 }
 

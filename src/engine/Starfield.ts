@@ -120,7 +120,9 @@ export class Starfield {
       ctx.fillRect(s.x * w, s.y * h, s.r, s.r)
     }
 
-    // parallax layers
+    // Parallax layers. Stars are drawn as squares rather than arcs: at 0.5–2.4px
+    // the difference is invisible, but one fillRect per star instead of
+    // beginPath+arc+fill keeps hundreds of stars per frame cheap on a phone.
     for (const layer of this.layers) {
       const tile = layer.stars.length
         ? Math.max(...layer.stars.map((s) => s.x)) + 200
@@ -132,15 +134,14 @@ export class Starfield {
       for (const s of layer.stars) {
         let sx = ((s.x + offX) % tileW + tileW) % tileW
         let sy = ((s.y + offY) % tileH + tileH) % tileH
+        const a = s.base * (0.55 + 0.45 * Math.sin(time * s.twinkle + s.phase))
+        if (a <= 0.02) continue
+        ctx.fillStyle = `rgba(255,255,255,${a})`
+        const size = s.r * 2
         // tile across the viewport
         for (let tx = sx; tx < w; tx += tileW) {
           for (let ty = sy; ty < h; ty += tileH) {
-            const a = s.base * (0.55 + 0.45 * Math.sin(time * s.twinkle + s.phase))
-            if (a <= 0.02) continue
-            ctx.fillStyle = `rgba(255,255,255,${a})`
-            ctx.beginPath()
-            ctx.arc(tx, ty, s.r, 0, TAU)
-            ctx.fill()
+            ctx.fillRect(tx - s.r, ty - s.r, size, size)
           }
         }
       }

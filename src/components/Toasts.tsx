@@ -9,7 +9,9 @@ export interface Toast {
 
 export function Toasts({ toasts, onDismiss }: { toasts: Toast[]; onDismiss: (id: string) => void }) {
   return (
-    <div className="pointer-events-none fixed left-1/2 top-4 z-[60] flex w-[min(420px,92vw)] -translate-x-1/2 flex-col gap-2">
+    // on phones the header row and thumb toolbar own the top and bottom edges,
+    // so toasts float just above the toolbar; on desktop they sit up top
+    <div className="pointer-events-none fixed left-1/2 bottom-[calc(env(safe-area-inset-bottom)+5.75rem)] z-[60] flex w-[min(420px,92vw)] -translate-x-1/2 flex-col-reverse gap-2 sm:bottom-auto sm:top-4 sm:flex-col">
       <AnimatePresence>
         {toasts.map((t) => (
           <motion.div
