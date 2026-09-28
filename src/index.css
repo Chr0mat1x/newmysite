@@ -1,0 +1,72 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+    margin: 0;
+  }
+
+  body {
+    background: #05030c;
+    color: #e9e6ff;
+    font-family: 'Inter', system-ui, sans-serif;
+    overscroll-behavior: none;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  ::selection {
+    background: rgba(160, 107, 255, 0.4);
+    color: #fff;
+  }
+
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(160, 107, 255, 0.28);
+    border-radius: 99px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(160, 107, 255, 0.5);
+  }
+}
+
+@layer components {
+  .input {
+    @apply w-full rounded-xl border border-white/10 bg-white/[0.04] px-3.5 py-2.5 text-sm text-white/90 outline-none transition-all placeholder:text-white/25;
+  }
+  .input:focus {
+    @apply border-pulse/60 bg-white/[0.07];
+    box-shadow: 0 0 0 3px rgba(160, 107, 255, 0.14);
+  }
+}
+
+@keyframes drift {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(0, -14px, 0);
+  }
+}
+
+.text-glow {
+  text-shadow: 0 0 14px rgba(160, 107, 255, 0.7);
+}
