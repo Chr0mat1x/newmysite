@@ -4,23 +4,38 @@ import { PlanetBadge } from './PlanetBadge'
 import { useGalaxy } from '../state/store'
 import { sfx } from '../lib/audio'
 import { planetSeed } from '../lib/seed'
+import { PASSWORD_MIN } from '../lib/auth'
 
 /** How many procedural worlds the launch screen offers to pick from. */
 const VARIANTS = [0, 1, 2, 3, 4, 5, 6, 7]
 
+type Mode = 'signup' | 'signin' | 'explore'
+
 export function AuthGate() {
-  const { login, users } = useGalaxy()
-  const [mode, setMode] = useState<'enter' | 'pick'>('enter')
-  const [handle, setHandle] = useState('')
+  const { login, signUp, loginAs, users } = useGalaxy()
+  const [mode, setMode] = useState<Mode>('signup')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [name, setName] = useState('')
+  const [error, setError] = useState<string | null>(null)
   const [variant, setVariant] = useState(() => Math.floor(Math.random() * VARIANTS.length))
 
-  const seed = useMemo(() => planetSeed(handle || 'orbit', name || 'traveler', variant), [handle, name, variant])
+  const seed = useMemo(
+    () => planetSeed(name || email.split('@')[0] || 'orbit', name || 'traveler', variant),
+    [email, name, variant],
+  )
+
+  const switchMode = (next: Mode) => {
+    setMode(next)
+    setError(null)
+  }
 
   const submit = () => {
-    if (!handle.trim()) return
-    login(handle, name || handle, variant)
+    const err = mode === 'signin' ? login(email, password) : signUp(email, password, name, variant)
+    setError(err)
   }
+
+  const explore = [...users].sort((a, b) => Number(!!a.mock) - Number(!!b.mock)).slice(0, 18)
 
   return (
     <div className="relative z-20 flex min-h-[100dvh] items-center justify-center px-4 py-6 pb-safe pt-safe sm:py-10">
@@ -49,107 +64,147 @@ export function AuthGate() {
         </div>
 
         <AnimatePresence mode="wait">
-          {mode === 'enter' ? (
+          {mode === 'explore' ? (
             <motion.div
-              key="enter"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0, x: -12 }}
-              className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain"
-            >
-              <Field label="handle">
-                <input
-                  autoFocus
-                  value={handle}
-                  onChange={(e) => setHandle(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && submit()}
-                  placeholder="stardust"
-                  autoComplete="username"
-                  className="input"
-                />
-              </Field>
-              <Field label="display name">
-                <input
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && submit()}
-                  placeholder="Dust of Stars"
-                  autoComplete="nickname"
-                  className="input"
-                />
-              </Field>
-              <Field label="world">
-                <div className="flex flex-wrap gap-2 pt-1">
-                  {VARIANTS.map((v) => (
-                    <button
-                      key={v}
-                      type="button"
-                      onClick={() => {
-                        setVariant(v)
-                        sfx.hover()
-                      }}
-                      aria-label={`world ${v + 1}`}
-                      className={`h-12 w-12 rounded-full border transition-transform hover:scale-110 active:scale-95 ${
-                        variant === v ? 'border-white' : 'border-white/15'
-                      }`}
-                      style={{
-                        boxShadow: variant === v ? '0 0 16px rgba(255,255,255,.55)' : 'none',
-                      }}
-                    >
-                      <PlanetBadge seed={planetSeed(handle || 'orbit', name || 'traveler', v)} size={44} />
-                    </button>
-                  ))}
-                </div>
-              </Field>
-              <button
-                onClick={submit}
-                disabled={!handle.trim()}
-                className="tap mt-2 w-full rounded-xl bg-gradient-to-r from-pulse to-glow py-3 font-display text-sm font-semibold tracking-wider text-black transition-all hover:brightness-110 active:scale-[0.98] disabled:opacity-30"
-              >
-                LAUNCH INTO ORBIT
-              </button>
-              <button
-                onClick={() => setMode('pick')}
-                className="tap w-full py-2 font-mono text-[11px] uppercase tracking-[0.2em] text-white/40 transition-colors hover:text-white/80 active:text-white/80"
-              >
-                or enter as an existing planet →
-              </button>
-            </motion.div>
-          ) : (
-            <motion.div
-              key="pick"
+              key="explore"
               initial={{ opacity: 0, x: 12 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0 }}
               className="min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain"
             >
               <div className="mb-2 space-y-1.5 pr-1">
-                {[...users]
-                  .sort((a, b) => Number(!!a.mock) - Number(!!b.mock))
-                  .slice(0, 18)
-                  .map((u) => (
-                    <button
-                      key={u.id}
-                      onClick={() => login(u.handle, u.name)}
-                      onMouseEnter={() => sfx.hover()}
-                      className="tap flex w-full items-center gap-3 rounded-xl border border-white/5 bg-white/[0.03] p-2 text-left transition-all hover:border-pulse/40 hover:bg-white/[0.07] active:bg-white/[0.07]"
-                    >
-                      <PlanetBadge seed={u.seed} size={32} />
-                      <div className="min-w-0">
-                        <div className="truncate text-sm text-white/90">{u.name}</div>
-                        <div className="truncate font-mono text-[10px] text-white/40">@{u.handle}</div>
-                      </div>
-                      {!u.mock && (
-                        <span className="ml-auto font-mono text-[9px] uppercase tracking-[0.18em] text-white/30">yours</span>
-                      )}
-                    </button>
-                  ))}
+                {explore.map((u) => (
+                  <button
+                    key={u.id}
+                    onClick={() => {
+                      sfx.click()
+                      loginAs(u.id)
+                    }}
+                    onMouseEnter={() => sfx.hover()}
+                    className="tap flex w-full items-center gap-3 rounded-xl border border-white/5 bg-white/[0.03] p-2 text-left transition-all hover:border-pulse/40 hover:bg-white/[0.07] active:bg-white/[0.07]"
+                  >
+                    <PlanetBadge seed={u.seed} size={32} />
+                    <div className="min-w-0">
+                      <div className="truncate text-sm text-white/90">{u.name}</div>
+                      <div className="truncate font-mono text-[10px] text-white/40">@{u.handle}</div>
+                    </div>
+                    {!u.mock && (
+                      <span className="ml-auto font-mono text-[9px] uppercase tracking-[0.18em] text-white/30">yours</span>
+                    )}
+                  </button>
+                ))}
               </div>
               <button
-                onClick={() => setMode('enter')}
+                onClick={() => switchMode('signin')}
                 className="tap w-full py-2 font-mono text-[11px] uppercase tracking-[0.2em] text-white/40 transition-colors hover:text-white/80 active:text-white/80"
               >
-                ← create a new planet
+                ← back to sign in
+              </button>
+            </motion.div>
+          ) : (
+            <motion.div
+              key={mode}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0, x: -12 }}
+              className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain"
+            >
+              <div className="flex gap-1 rounded-xl border border-white/10 bg-white/[0.03] p-1">
+                {(['signup', 'signin'] as const).map((m) => (
+                  <button
+                    key={m}
+                    onClick={() => switchMode(m)}
+                    className={`tap flex-1 rounded-lg py-2 font-mono text-[10px] uppercase tracking-[0.18em] transition-colors ${
+                      mode === m ? 'bg-white/10 text-white' : 'text-white/40 hover:text-white/70'
+                    }`}
+                  >
+                    {m === 'signup' ? 'create planet' : 'sign in'}
+                  </button>
+                ))}
+              </div>
+
+              {mode === 'signup' && (
+                <Field label="display name">
+                  <input
+                    autoFocus
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && submit()}
+                    placeholder="Nova Ashkar"
+                    autoComplete="nickname"
+                    className="input"
+                  />
+                </Field>
+              )}
+
+              <Field label="email">
+                <input
+                  autoFocus={mode === 'signin'}
+                  type="email"
+                  inputMode="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && submit()}
+                  placeholder="you@orbit.space"
+                  autoComplete="email"
+                  className="input"
+                />
+              </Field>
+
+              <Field label="password">
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && submit()}
+                  placeholder={mode === 'signup' ? `at least ${PASSWORD_MIN} characters` : '••••••••'}
+                  autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
+                  className="input"
+                />
+              </Field>
+
+              {mode === 'signup' && (
+                <Field label="world">
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    {VARIANTS.map((v) => (
+                      <button
+                        key={v}
+                        type="button"
+                        onClick={() => {
+                          setVariant(v)
+                          sfx.hover()
+                        }}
+                        aria-label={`world ${v + 1}`}
+                        className={`h-12 w-12 rounded-full border transition-transform hover:scale-110 active:scale-95 ${
+                          variant === v ? 'border-white' : 'border-white/15'
+                        }`}
+                        style={{ boxShadow: variant === v ? '0 0 16px rgba(255,255,255,.55)' : 'none' }}
+                      >
+                        <PlanetBadge seed={planetSeed(name || 'orbit', name || 'traveler', v)} size={44} />
+                      </button>
+                    ))}
+                  </div>
+                </Field>
+              )}
+
+              {error && (
+                <p role="alert" className="rounded-xl border border-white/15 bg-white/[0.05] px-3 py-2 text-[12px] text-white/70">
+                  {error}
+                </p>
+              )}
+
+              <button
+                onClick={submit}
+                disabled={!email.trim() || !password}
+                className="tap mt-1 w-full rounded-xl bg-gradient-to-r from-pulse to-glow py-3 font-display text-sm font-semibold tracking-wider text-black transition-all hover:brightness-110 active:scale-[0.98] disabled:opacity-30"
+              >
+                {mode === 'signup' ? 'LAUNCH INTO ORBIT' : 'ENTER ORBIT'}
+              </button>
+              <button
+                onClick={() => switchMode('explore')}
+                className="tap w-full py-2 font-mono text-[11px] uppercase tracking-[0.2em] text-white/40 transition-colors hover:text-white/80 active:text-white/80"
+              >
+                or explore a demo planet →
               </button>
             </motion.div>
           )}

@@ -4,6 +4,7 @@ import { PlanetBadge } from './PlanetBadge'
 import { MiniMap, type MiniPlanet, MINI_WORLD } from './MiniMap'
 import { useGalaxy } from '../state/store'
 import { sfx } from '../lib/audio'
+import { LinkEmailInline } from './LinkEmailInline'
 
 export interface Leader {
   id: string
@@ -74,23 +75,24 @@ export function MobileMenu({
               </div>
 
               {currentUser && (
-                <button
-                  onClick={() => {
-                    sfx.click()
-                    onJump(currentUser.id)
-                    onClose()
-                  }}
-                  className="flex w-full items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-3 text-left transition-colors active:bg-white/[0.07]"
-                >
+                <div className="flex w-full items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-3">
                   <PlanetBadge seed={currentUser.seed} size={38} />
                   <div className="min-w-0">
                     <div className="truncate text-sm text-white/90">{currentUser.name}</div>
                     <div className="truncate font-mono text-[10px] text-white/40">@{currentUser.handle}</div>
+                    <LinkEmailInline compact />
                   </div>
-                  <span className="ml-auto font-mono text-[10px] uppercase tracking-[0.18em] text-white/40">
+                  <button
+                    onClick={() => {
+                      sfx.click()
+                      onJump(currentUser.id)
+                      onClose()
+                    }}
+                    className="tap ml-auto rounded-lg px-3 font-mono text-[10px] uppercase tracking-[0.18em] text-white/40 transition-colors active:bg-white/5 active:text-white"
+                  >
                     my orbit
-                  </span>
-                </button>
+                  </button>
+                </div>
               )}
 
               <div>

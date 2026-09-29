@@ -5,12 +5,14 @@ import { loadState, saveState, uid } from '../lib/storage'
 import { buildSeedGalaxy, makeUser } from '../lib/seed'
 import { sfx } from '../lib/audio'
 import { hashString } from '../lib/procgen'
+import { hashPassword, handleFromIdentity, isValidEmail, isValidPassword, makeSalt, normalizeEmail, verifyPassword } from '../lib/auth'
 
 type Action =
   | { type: 'hydrate'; state: GalaxyState }
   | { type: 'login'; user: User }
   | { type: 'logout' }
   | { type: 'updateUser'; patch: Partial<User> }
+  | { type: 'linkEmail'; userId: string; email: string; passwordHash: string }
   | { type: 'addPost'; post: Post }
   | { type: 'deletePost'; id: string }
   | { type: 'toggleLike'; postId: string; userId: string }
@@ -35,6 +37,14 @@ function reducer(state: GalaxyState, action: Action): GalaxyState {
       const cur = state.users[state.currentUserId]
       if (!cur) return state
       return { ...state, users: { ...state.users, [cur.id]: { ...cur, ...action.patch } } }
+    }
+    case 'linkEmail': {
+      const u = state.users[action.userId]
+      if (!u) return state
+      return {
+        ...state,
+        users: { ...state.users, [action.userId]: { ...u, email: action.email, passwordHash: action.passwordHash } },
+      }
     }
     case 'addPost':
       return { ...state, posts: { ...state.posts, [action.post.id]: action.post } }
@@ -97,7 +107,14 @@ interface Ctx {
   postById: (id: string) => Post | undefined
   userById: (id: string) => User | undefined
   supernovas: Post[]
-  login: (handle: string, name: string, planetVariant?: number) => User
+  /** Sign in with email + password. Returns an error message, or null on success. */
+  login: (email: string, password: string) => string | null
+  /** Create a new planet. Returns an error message, or null on success. */
+  signUp: (email: string, password: string, name: string, planetVariant?: number) => string | null
+  /** Enter as an existing planet without credentials (seeded demo accounts). */
+  loginAs: (userId: string) => void
+  /** Attach an email + password to the current local account. */
+  linkEmail: (email: string, password: string) => string | null
   logout: () => void
   updateProfile: (patch: Partial<User>) => void
   createPost: (text: string, image?: string) => Post | null
@@ -148,20 +165,65 @@ export function GalaxyProvider({ children }: { children: React.ReactNode }) {
   )
 
   const login = useCallback(
-    (handle: string, name: string, planetVariant = 0) => {
-      const clean = handle.trim().toLowerCase().replace(/[^a-z0-9_]/gi, '')
-      // Only ever resume a planet the player created locally. Seeded demo
-      // accounts share the handle namespace, and without this guard typing
-      // "ember" would silently hand you a seeded user as if it were yours.
-      const existing = Object.values(state.users).find(
-        (u) => !u.mock && u.handle.toLowerCase() === clean,
-      )
-      const user = existing ?? makeUser(handle, name, planetVariant)
+    (email: string, password: string): string | null => {
+      const mail = normalizeEmail(email)
+      if (!isValidEmail(mail)) return 'enter a valid email address'
+      const user = Object.values(state.users).find((u) => !u.mock && u.email === mail)
+      if (!user || !user.passwordHash) return 'no planet orbits this email yet'
+      const salt = user.id
+      if (!verifyPassword(password, salt, user.passwordHash)) return 'wrong password — try again'
       dispatch({ type: 'login', user })
       sfx.launch()
-      return user
+      return null
     },
     [state.users],
+  )
+
+  const signUp = useCallback(
+    (email: string, password: string, name: string, planetVariant = 0): string | null => {
+      const mail = normalizeEmail(email)
+      if (!isValidEmail(mail)) return 'enter a valid email address'
+      if (!isValidPassword(password)) return `password needs at least ${8} characters`
+      if (Object.values(state.users).some((u) => !u.mock && u.email === mail)) {
+        return 'this email already has a planet — sign in instead'
+      }
+      const label = name.trim() || mail.split('@')[0]
+      const taken = new Set(Object.values(state.users).map((u) => u.handle.toLowerCase()))
+      const handle = handleFromIdentity(label, mail, taken)
+      const base = makeUser(handle, label, planetVariant)
+      // the salt is the account id, so the hash is derived from the final user
+      const user: User = { ...base, email: mail, passwordHash: hashPassword(password, base.id) }
+      dispatch({ type: 'login', user })
+      sfx.launch()
+      return null
+    },
+    [state.users],
+  )
+
+  const loginAs = useCallback(
+    (userId: string) => {
+      const user = state.users[userId]
+      if (!user) return
+      dispatch({ type: 'login', user })
+      sfx.launch()
+    },
+    [state.users],
+  )
+
+  const linkEmail = useCallback(
+    (email: string, password: string): string | null => {
+      const id = state.currentUserId
+      if (!id) return 'you are not signed in'
+      const mail = normalizeEmail(email)
+      if (!isValidEmail(mail)) return 'enter a valid email address'
+      if (!isValidPassword(password)) return `password needs at least ${8} characters`
+      if (Object.values(state.users).some((u) => u.id !== id && !u.mock && u.email === mail)) {
+        return 'another planet already uses this email'
+      }
+      dispatch({ type: 'linkEmail', userId: id, email: mail, passwordHash: hashPassword(password, id) })
+      return null
+    },
+    [state.currentUserId, state.users],
   )
 
   const logout = useCallback(() => {
@@ -238,6 +300,9 @@ export function GalaxyProvider({ children }: { children: React.ReactNode }) {
     userById,
     supernovas,
     login,
+    signUp,
+    loginAs,
+    linkEmail,
     logout,
     updateProfile,
     createPost,

@@ -8,6 +8,7 @@ import { Composer } from './components/Composer'
 import { SupernovaFeed } from './components/SupernovaFeed'
 import { MiniMap, type MiniPlanet, MINI_WORLD } from './components/MiniMap'
 import { MobileMenu } from './components/MobileMenu'
+import { LinkEmailInline } from './components/LinkEmailInline'
 import { Toasts, type Toast } from './components/Toasts'
 import { Onboarding } from './components/Onboarding'
 import { PlanetBadge } from './components/PlanetBadge'
@@ -426,19 +427,22 @@ function Orbit() {
 
       {/* ---------- settings footer ---------- */}
       {currentUser && (
-        <div className="pointer-events-auto absolute bottom-3 left-1/2 z-10 hidden -translate-x-1/2 gap-3 font-mono text-[9px] uppercase tracking-[0.18em] text-white/20 lg:flex">
-          <button onClick={logout} className="transition-colors hover:text-white/60">
-            leave orbit
-          </button>
-          <span>·</span>
-          <button
-            onClick={() => {
-              if (confirm('Reset the galaxy to its seeded state? Your local posts will be lost.')) resetGalaxy()
-            }}
-            className="transition-colors hover:text-white/60"
-          >
-            reset galaxy
-          </button>
+        <div className="pointer-events-auto absolute bottom-3 left-1/2 z-10 hidden -translate-x-1/2 flex-col items-center gap-1.5 font-mono text-[9px] uppercase tracking-[0.18em] text-white/20 lg:flex">
+          <div className="flex gap-3">
+            <button onClick={logout} className="transition-colors hover:text-white/60">
+              leave orbit
+            </button>
+            <span>·</span>
+            <button
+              onClick={() => {
+                if (confirm('Reset the galaxy to its seeded state? Your local posts will be lost.')) resetGalaxy()
+              }}
+              className="transition-colors hover:text-white/60"
+            >
+              reset galaxy
+            </button>
+          </div>
+          <LinkEmailInline />
         </div>
       )}
     </div>

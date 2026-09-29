@@ -6,6 +6,10 @@ export interface User {
   seed: number
   createdAt: number
   mock?: boolean
+  /** login identity — absent on seeded demo accounts */
+  email?: string
+  /** demo-grade salted hash, see lib/auth.ts. Not real security. */
+  passwordHash?: string
 }
 
 export interface Signal {
