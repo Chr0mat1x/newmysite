@@ -8,6 +8,29 @@ export default defineConfig({
     port: 5173,
     strictPort: false,
     allowedHosts: true,
+    // Reaches the local Supabase stack through the same origin as the app.
+    // Only needed when VITE_SUPABASE_URL is the relative `/sb`; external
+    // Supabase projects are called directly and never hit this rule.
+    proxy: {
+      '/sb': {
+        target: 'http://127.0.0.1:54321',
+        changeOrigin: true,
+        ws: true,
+        rewrite: (p) => p.replace(/^\/sb/, ''),
+      },
+    },
   },
-  preview: { host: '0.0.0.0', port: 4173, allowedHosts: true },
+  preview: {
+    host: '0.0.0.0',
+    port: 4173,
+    allowedHosts: true,
+    proxy: {
+      '/sb': {
+        target: 'http://127.0.0.1:54321',
+        changeOrigin: true,
+        ws: true,
+        rewrite: (p) => p.replace(/^\/sb/, ''),
+      },
+    },
+  },
 })
