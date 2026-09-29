@@ -173,6 +173,22 @@ There is no SMTP server locally. Supabase hands mail to a catcher (Inbucket) and
 needs SMTP configured in `config.toml` under `[auth.email.smtp]`, or a hosted
 project with its own SMTP.
 
+### Bringing the environment back up
+
+The local stack runs in Docker, and a restarted container can come back with the
+daemon gone — then every `/sb/...` request fails, the dev server logs
+`ECONNREFUSED 127.0.0.1:54321`, and the app falls back to its error state while
+the offline `LocalBackend` still works. Recover with, in order:
+
+```bash
+sudo service docker start      # or: dockerd &
+npx supabase start             # a couple of minutes; re-applies the migration
+npm run dev -- --port 12000
+```
+
+`npm test` does not need any of this; `npm run test:supabase` and
+`npm run test:mail` do.
+
 ## Status
 
 Email registration replaced nickname-only sign-in. Supabase is now wired in:
