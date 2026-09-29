@@ -150,6 +150,29 @@ change — it is what proves the localStorage fallback still works.
 - Supabase's auth messages are translated to ORBIT's copy in the backend's
   `friendlyAuthError`; keep user-facing strings there, not in components.
 
+### Reaching the backend from the work host
+
+The browser the user tests in is **not** on this machine, so `127.0.0.1` is not
+this machine either. Anything the app talks to directly must go through the dev
+server's own origin:
+
+- `VITE_SUPABASE_URL=/sb`, proxied to `127.0.0.1:54321` (see `vite.config.ts`).
+- The local mail catcher is `/mb` -> `127.0.0.1:54324`, read by `Mailbox.tsx`.
+- `supabase/config.toml` must keep `site_url` / `additional_redirect_urls` on the
+  work-host URL, or recovery links bounce to `localhost:3000`.
+- Changing `config.toml` needs `npx supabase stop && npx supabase start` (the
+  auth container reads it from the environment at creation). It takes a couple
+  of minutes and applies the migration again.
+- A hosted Supabase project short-circuits all of this: an absolute
+  `VITE_SUPABASE_URL` is used as-is, and there is no catcher to show.
+
+### Mail
+
+There is no SMTP server locally. Supabase hands mail to a catcher (Inbucket) and
+`Mailbox.tsx` renders it in-app, rewriting loopback links to `/sb`. Real delivery
+needs SMTP configured in `config.toml` under `[auth.email.smtp]`, or a hosted
+project with its own SMTP.
+
 ## Status
 
 Email registration replaced nickname-only sign-in. Supabase is now wired in:
@@ -157,6 +180,9 @@ schema + RLS + triggers live in `supabase/migrations/`, the client layer in
 `src/lib/backends/`, and the app runs against the shared galaxy whenever the two
 `VITE_SUPABASE_*` vars are set.
 
-Without them the offline `LocalBackend` still applies, and there `src/lib/auth.ts`
+Password recovery works end to end (request -> in-app mailbox -> link -> new
+password), verified from the public work host.
+
+Without those vars the offline `LocalBackend` still applies, and there `src/lib/auth.ts`
 hashes passwords in the browser — demo-grade, not real security. Set the env vars
 (and enable anonymous sign-ins) before calling any deployment production-ready.
