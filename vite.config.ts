@@ -18,6 +18,12 @@ export default defineConfig({
         ws: true,
         rewrite: (p) => p.replace(/^\/sb/, ''),
       },
+      // the local mail catcher (Inbucket), so recovery mail is readable in-app
+      '/mb': {
+        target: 'http://127.0.0.1:54324',
+        changeOrigin: true,
+        rewrite: (p) => p.replace(/^\/mb/, ''),
+      },
     },
   },
   preview: {
@@ -30,6 +36,12 @@ export default defineConfig({
         changeOrigin: true,
         ws: true,
         rewrite: (p) => p.replace(/^\/sb/, ''),
+      },
+      // the local mail catcher (Inbucket), so recovery mail is readable in-app
+      '/mb': {
+        target: 'http://127.0.0.1:54324',
+        changeOrigin: true,
+        rewrite: (p) => p.replace(/^\/mb/, ''),
       },
     },
   },

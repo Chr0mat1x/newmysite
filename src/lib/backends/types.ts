@@ -26,6 +26,13 @@ export interface Backend {
   signOut(): Promise<void>
   /** Attach credentials to the current planet — turns a visitor into an owner. */
   linkEmail(email: string, password: string): Promise<GalaxyState>
+  /**
+   * Ask for a password-recovery link by email. Returns a human-readable error,
+   * or null on success. The offline backend cannot send mail.
+   */
+  resetPassword(email: string): Promise<string | null>
+  /** Change the signed-in account's password (used to finish a recovery). */
+  setPassword(password: string): Promise<string | null>
   updateProfile(patch: { name?: string; bio?: string }): Promise<GalaxyState>
   createPost(text: string, image?: string): Promise<GalaxyState>
   deletePost(id: string): Promise<GalaxyState>

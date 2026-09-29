@@ -84,6 +84,21 @@ export class LocalBackend implements Backend {
     })
   }
 
+  async resetPassword(email: string): Promise<string | null> {
+    // Nothing to send: this backend has no server, accounts never left the
+    // browser, and there is no way to prove the caller owns the address.
+    const mail = normalizeEmail(email)
+    if (!isValidEmail(mail)) return 'enter a valid email address'
+    return 'this offline build cannot send email — reset is only available against Supabase'
+  }
+
+  async setPassword(password: string): Promise<string | null> {
+    const me = this.require()
+    if (!isValidPassword(password)) return 'password needs at least 8 characters'
+    this.apply({ type: 'linkEmail', userId: me.id, email: me.email ?? '', passwordHash: hashPassword(password, me.id) })
+    return null
+  }
+
   async updateProfile(patch: { name?: string; bio?: string }) {
     this.require()
     return this.apply({ type: 'updateUser', patch })

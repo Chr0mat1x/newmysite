@@ -1,24 +1,33 @@
 import { motion, AnimatePresence } from 'framer-motion'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { PlanetBadge } from './PlanetBadge'
+import { Mailbox } from './Mailbox'
 import { useGalaxy } from '../state/store'
 import { sfx } from '../lib/audio'
 import { planetSeed } from '../lib/seed'
 import { PASSWORD_MIN } from '../lib/auth'
+import { isRemote, recovery } from '../lib/supabase'
 
 /** How many procedural worlds the launch screen offers to pick from. */
 const VARIANTS = [0, 1, 2, 3, 4, 5, 6, 7]
 
-type Mode = 'signup' | 'signin' | 'explore'
+type Mode = 'signup' | 'signin' | 'explore' | 'reset' | 'sent' | 'recover'
 
 export function AuthGate() {
-  const { login, signUp, loginAs, users, postsOf, busy } = useGalaxy()
-  const [mode, setMode] = useState<Mode>('signup')
+  const { login, signUp, loginAs, resetPassword, setPassword: savePassword, refresh, users, postsOf, busy } = useGalaxy()
+  const [mode, setMode] = useState<Mode>(() => (recovery.pending ? 'recover' : 'signup'))
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [name, setName] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
   const [variant, setVariant] = useState(() => Math.floor(Math.random() * VARIANTS.length))
+
+  useEffect(() => {
+    if (!recovery.pending) return
+    recovery.pending = false
+    setMode('recover')
+  }, [])
 
   const seed = useMemo(
     () => planetSeed(name || email.split('@')[0] || 'orbit', name || 'traveler', variant),
@@ -28,13 +37,31 @@ export function AuthGate() {
   const switchMode = (next: Mode) => {
     setMode(next)
     setError(null)
+    setNotice(null)
   }
 
   const submit = async () => {
-    const err =
-      mode === 'signin'
-        ? await login(email, password)
-        : await signUp(email, password, name, variant)
+    let err: string | null = null
+    if (mode === 'recover') {
+      err = await savePassword(password)
+      if (!err) {
+        // updateUser keeps the recovery session; re-read the galaxy into it.
+        await refresh()
+        return
+      }
+      setError(err)
+      return
+    }
+    if (mode === 'reset') {
+      err = await resetPassword(email)
+      if (!err) {
+        setNotice(`reset link sent to ${email.trim().toLowerCase()}`)
+        setMode('sent')
+      }
+      setError(err)
+      return
+    }
+    err = mode === 'signin' ? await login(email, password) : await signUp(email, password, name, variant)
     setError(err)
   }
 
@@ -121,6 +148,56 @@ export function AuthGate() {
               exit={{ opacity: 0, x: -12 }}
               className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain"
             >
+              {mode === 'recover' ? (
+                <div className="space-y-3">
+                  <p className="text-[12px] leading-relaxed text-white/50">
+                    Recovery link accepted. Choose a new key for your planet.
+                  </p>
+                  <Field label="new password">
+                    <input
+                      autoFocus
+                      type="password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && submit()}
+                      placeholder="at least 8 characters"
+                      autoComplete="new-password"
+                      className="input"
+                    />
+                  </Field>
+                  {error && (
+                    <p role="alert" className="rounded-xl border border-white/15 bg-white/[0.05] px-3 py-2 text-[12px] text-white/70">
+                      {error}
+                    </p>
+                  )}
+                  <button
+                    onClick={() => void submit()}
+                    disabled={!password || busy}
+                    className="tap w-full rounded-xl bg-gradient-to-r from-pulse to-glow py-3 font-display text-sm font-semibold tracking-wider text-black transition-all hover:brightness-110 active:scale-[0.98] disabled:opacity-30"
+                  >
+                    {busy ? 'SAVING…' : 'SET NEW KEY'}
+                  </button>
+                </div>
+              ) : mode === 'sent' ? (
+                <div className="space-y-3">
+                  <p role="status" className="rounded-xl border border-white/15 bg-white/[0.05] px-3 py-2 text-[12px] text-white/70">
+                    {notice}
+                  </p>
+                  <p className="text-[12px] leading-relaxed text-white/45">
+                    {isRemote
+                      ? 'No mail server is configured in this demo, so nothing reaches a real inbox. Open the mailbox below to collect the link.'
+                      : 'This build is fully offline — accounts live only in this browser, so there is no email to send.'}
+                  </p>
+                  <Mailbox open defaultOpen />
+                  <button
+                    onClick={() => switchMode('signin')}
+                    className="tap w-full py-2 font-mono text-[11px] uppercase tracking-[0.2em] text-white/40 transition-colors hover:text-white/80 active:text-white/80"
+                  >
+                    ← back to sign in
+                  </button>
+                </div>
+              ) : (
+                <>
               <div className="flex gap-1 rounded-xl border border-white/10 bg-white/[0.03] p-1">
                 {(['signup', 'signin'] as const).map((m) => (
                   <button
@@ -151,7 +228,7 @@ export function AuthGate() {
 
               <Field label="email">
                 <input
-                  autoFocus={mode === 'signin'}
+                  autoFocus={mode === 'signin' || mode === 'reset'}
                   type="email"
                   inputMode="email"
                   value={email}
@@ -163,17 +240,19 @@ export function AuthGate() {
                 />
               </Field>
 
-              <Field label="password">
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && submit()}
-                  placeholder={mode === 'signup' ? `at least ${PASSWORD_MIN} characters` : '••••••••'}
-                  autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
-                  className="input"
-                />
-              </Field>
+              {mode !== 'reset' && (
+                <Field label="password">
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && submit()}
+                    placeholder={mode === 'signup' ? `at least ${PASSWORD_MIN} characters` : '••••••••'}
+                    autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
+                    className="input"
+                  />
+                </Field>
+              )}
 
               {mode === 'signup' && (
                 <Field label="world">
@@ -207,21 +286,35 @@ export function AuthGate() {
 
               <button
                 onClick={() => void submit()}
-                disabled={!email.trim() || !password || busy}
+                disabled={!email.trim() || (mode !== 'reset' && !password) || busy}
                 className="tap mt-1 w-full rounded-xl bg-gradient-to-r from-pulse to-glow py-3 font-display text-sm font-semibold tracking-wider text-black transition-all hover:brightness-110 active:scale-[0.98] disabled:opacity-30"
               >
                 {busy
                   ? 'CONTACTING ORBIT…'
-                  : mode === 'signup'
-                    ? 'LAUNCH INTO ORBIT'
-                    : 'ENTER ORBIT'}
+                  : mode === 'reset'
+                    ? 'SEND RESET LINK'
+                    : mode === 'signup'
+                      ? 'LAUNCH INTO ORBIT'
+                      : 'ENTER ORBIT'}
               </button>
+
+              {mode === 'signin' && (
+                <button
+                  onClick={() => switchMode('reset')}
+                  className="tap w-full py-1.5 font-mono text-[11px] uppercase tracking-[0.2em] text-white/35 transition-colors hover:text-white/75 active:text-white/75"
+                >
+                  forgot your key?
+                </button>
+              )}
+
               <button
                 onClick={() => switchMode('explore')}
                 className="tap w-full py-2 font-mono text-[11px] uppercase tracking-[0.2em] text-white/40 transition-colors hover:text-white/80 active:text-white/80"
               >
                 or explore a demo planet →
               </button>
+                </>
+              )}
             </motion.div>
           )}
         </AnimatePresence>

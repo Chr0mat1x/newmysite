@@ -22,11 +22,36 @@ function resolveUrl(raw: string): string {
 export const supabase: SupabaseClient | null =
   rawUrl && anonKey
     ? createClient(resolveUrl(rawUrl), anonKey, {
-        auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false },
+        auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
       })
     : null
 
+/**
+ * Set when a password-recovery link is opened. supabase-js turns the tokens in
+ * the URL into a session and emits PASSWORD_RECOVERY; the app then asks for a
+ * new password instead of dropping the user into the galaxy.
+ */
+export const recovery = { pending: false }
+
+supabase?.auth.onAuthStateChange((event) => {
+  if (event === 'PASSWORD_RECOVERY') recovery.pending = true
+})
+
 export const isRemote = supabase !== null
+
+/**
+ * The local stack ships a mail catcher (Inbucket/Mailpit) instead of an SMTP
+ * server, so recovery mail never reaches a real inbox. When Supabase is reached
+ * through the `/sb` proxy we also expose the catcher at `/mb` so the UI can show
+ * those messages. Hosted projects have no catcher and this is null.
+ */
+export const mailCatcherUrl: string | null =
+  rawUrl && anonKey && !/^https?:\/\//i.test(rawUrl)
+    ? new URL(rawUrl.replace(/\/sb\/?$/, '/mb'), window.location.origin).toString().replace(/\/$/, '')
+    : null
+
+/** Absolute base of the Supabase API, for building verify links in the UI. */
+export const supabaseBase = rawUrl ? resolveUrl(rawUrl).replace(/\/$/, '') : null
 
 /** Rough health of the remote link, shown in the HUD's link indicator. */
 export type LinkStatus = 'offline' | 'connecting' | 'online' | 'error'

@@ -113,6 +113,24 @@ export class SupabaseBackend implements Backend {
     return this.loadAll()
   }
 
+  async resetPassword(email: string): Promise<string | null> {
+    const mail = normalizeEmail(email)
+    if (!mail) return 'enter the email you signed up with'
+    const { error } = await this.client.auth.resetPasswordForEmail(mail, {
+      redirectTo: window.location.origin,
+    })
+    if (error) return this.friendlyAuthError(error.message)
+    return null
+  }
+
+  /** Finish a recovery flow: the link already granted a session. */
+  async setPassword(password: string): Promise<string | null> {
+    if (password.length < 8) return 'password needs at least 8 characters'
+    const { error } = await this.client.auth.updateUser({ password })
+    if (error) return this.friendlyAuthError(error.message)
+    return null
+  }
+
   async updateProfile(patch: { name?: string; bio?: string }) {
     const me = await this.requireUserId()
     const update: Record<string, string> = {}

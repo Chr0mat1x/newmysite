@@ -46,6 +46,12 @@ interface Ctx {
   loginAs: (userId: string) => Promise<string | null>
   /** Attach an email + password to the current account. Returns an error or null. */
   linkEmail: (email: string, password: string) => Promise<string | null>
+  /** Request a password-recovery email. Returns an error string, or null on success. */
+  resetPassword: (email: string) => Promise<string | null>
+  /** Change the signed-in account's password (finishes a recovery). */
+  setPassword: (password: string) => Promise<string | null>
+  /** Re-read the galaxy from the source. */
+  refresh: () => Promise<boolean>
   logout: () => void
   updateProfile: (patch: Partial<User>) => void
   createPost: (text: string, image?: string) => void
@@ -211,6 +217,31 @@ export function GalaxyProvider({ children }: { children: React.ReactNode }) {
     }
   }, [])
 
+  const resetPassword = useCallback(async (email: string): Promise<string | null> => {
+    setBusy(true)
+    try {
+      return await backend.resetPassword(email)
+    } catch (e) {
+      return message(e)
+    } finally {
+      setBusy(false)
+    }
+  }, [])
+
+  const setPassword = useCallback(async (password: string): Promise<string | null> => {
+    setBusy(true)
+    try {
+      return await backend.setPassword(password)
+    } catch (e) {
+      return message(e)
+    } finally {
+      setBusy(false)
+    }
+  }, [])
+
+  /** Re-read the galaxy from the source, e.g. after an out-of-band auth change. */
+  const refresh = useCallback(() => run(() => backend.refresh()), [run])
+
   const logout = useCallback(() => {
     sfx.click()
     void backend.signOut().catch(() => undefined)
@@ -285,6 +316,9 @@ export function GalaxyProvider({ children }: { children: React.ReactNode }) {
     signUp,
     loginAs,
     linkEmail,
+    resetPassword,
+    setPassword,
+    refresh,
     logout,
     updateProfile,
     createPost,
