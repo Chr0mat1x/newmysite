@@ -427,7 +427,7 @@ function Orbit() {
 
       {/* ---------- settings footer ---------- */}
       {currentUser && (
-        <div className="pointer-events-auto absolute bottom-3 left-1/2 z-10 hidden -translate-x-1/2 flex-col items-center gap-1.5 font-mono text-[9px] uppercase tracking-[0.18em] text-white/20 lg:flex">
+        <div className="pointer-events-auto absolute bottom-3 left-1/2 z-10 hidden -translate-x-1/2 flex-col items-center gap-1.5 font-mono text-[9px] uppercase tracking-[0.18em] text-white/20 sm:flex">
           <div className="flex gap-3">
             <button onClick={logout} className="transition-colors hover:text-white/60">
               leave orbit
