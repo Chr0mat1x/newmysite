@@ -23,15 +23,15 @@ export function AuthGate() {
   }
 
   return (
-    <div className="relative z-20 flex min-h-[100dvh] items-center justify-center px-4 pb-safe pt-safe py-6 sm:py-10">
+    <div className="relative z-20 flex min-h-[100dvh] items-center justify-center px-4 py-6 pb-safe pt-safe sm:py-10">
       <motion.div
         initial={{ opacity: 0, y: 24, scale: 0.97 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1] }}
-        className="w-full max-w-md rounded-3xl border border-white/10 bg-black/40 p-5 backdrop-blur-2xl sm:p-7"
+        className="flex max-h-[100dvh] w-full max-w-md flex-col overflow-hidden rounded-3xl border border-white/10 bg-black/40 p-5 backdrop-blur-2xl sm:max-h-[90dvh] sm:p-7"
         style={{ boxShadow: '0 0 120px rgba(255,255,255,.09), inset 0 1px 0 rgba(255,255,255,.06)' }}
       >
-        <div className="mb-5 text-center sm:mb-7">
+        <div className="mb-5 shrink-0 text-center sm:mb-7">
           <motion.div
             animate={{ rotate: 360 }}
             transition={{ duration: 40, repeat: Infinity, ease: 'linear' }}
@@ -55,7 +55,7 @@ export function AuthGate() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0, x: -12 }}
-              className="space-y-3"
+              className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain"
             >
               <Field label="handle">
                 <input
@@ -121,12 +121,12 @@ export function AuthGate() {
               initial={{ opacity: 0, x: 12 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0 }}
-              className="space-y-2"
+              className="min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain"
             >
-              <div className="mb-2 max-h-[45dvh] space-y-1.5 overflow-y-auto overscroll-contain pr-1">
-                {users
-                  .filter((u) => u.mock)
-                  .slice(0, 14)
+              <div className="mb-2 space-y-1.5 pr-1">
+                {[...users]
+                  .sort((a, b) => Number(!!a.mock) - Number(!!b.mock))
+                  .slice(0, 18)
                   .map((u) => (
                     <button
                       key={u.id}
@@ -139,6 +139,9 @@ export function AuthGate() {
                         <div className="truncate text-sm text-white/90">{u.name}</div>
                         <div className="truncate font-mono text-[10px] text-white/40">@{u.handle}</div>
                       </div>
+                      {!u.mock && (
+                        <span className="ml-auto font-mono text-[9px] uppercase tracking-[0.18em] text-white/30">yours</span>
+                      )}
                     </button>
                   ))}
               </div>

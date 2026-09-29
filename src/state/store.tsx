@@ -149,8 +149,12 @@ export function GalaxyProvider({ children }: { children: React.ReactNode }) {
 
   const login = useCallback(
     (handle: string, name: string, planetVariant = 0) => {
+      const clean = handle.trim().toLowerCase().replace(/[^a-z0-9_]/gi, '')
+      // Only ever resume a planet the player created locally. Seeded demo
+      // accounts share the handle namespace, and without this guard typing
+      // "ember" would silently hand you a seeded user as if it were yours.
       const existing = Object.values(state.users).find(
-        (u) => u.handle.toLowerCase() === handle.trim().toLowerCase().replace(/[^a-z0-9_]/gi, ''),
+        (u) => !u.mock && u.handle.toLowerCase() === clean,
       )
       const user = existing ?? makeUser(handle, name, planetVariant)
       dispatch({ type: 'login', user })
