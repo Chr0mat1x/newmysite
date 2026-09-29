@@ -64,6 +64,32 @@
   }
 }
 
+/* ---------- keyboard focus ---------- */
+/* Mouse users never see a ring; keyboard users always do. The canvas and
+   tap-only controls stay clean, but every real button announces itself. */
+@layer base {
+  :focus-visible {
+    outline: 2px solid rgba(255, 255, 255, 0.75);
+    outline-offset: 2px;
+    border-radius: 8px;
+  }
+  .input:focus-visible {
+    outline: none;
+  }
+}
+
+/* Honour the OS "reduce motion" setting: ambient drift, breathing glows and
+   the sweeping headline hold still, while functional transitions stay short. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.08s !important;
+  }
+}
+
 /* ---------- safe areas (notch / home indicator) ---------- */
 @layer utilities {
   .pt-safe {

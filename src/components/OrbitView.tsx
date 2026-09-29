@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'framer-motion'
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useGalaxy } from '../state/store'
 import { PlanetBadge } from './PlanetBadge'
 import { PostCard } from './PostCard'
@@ -13,10 +13,13 @@ interface Props {
 }
 
 export function OrbitView({ userId, onClose, onCompose }: Props) {
-  const { userById, postsOf, currentUser, updateProfile, toggleLike, state } = useGalaxy()
+  const { userById, postsOf, currentUser, updateProfile, toggleLike, toggleFollow, state } = useGalaxy()
   const user = userId ? userById(userId) : null
   const isMobile = useIsMobile()
   const posts = useMemo(() => (userId ? postsOf(userId) : []), [userId, postsOf, state.posts])
+  const [editing, setEditing] = useState(false)
+  const [draftName, setDraftName] = useState('')
+  const [draftBio, setDraftBio] = useState('')
 
   const stats = useMemo(() => {
     const likes = posts.reduce((a, p) => a + p.likes.length, 0)
@@ -25,7 +28,21 @@ export function OrbitView({ userId, onClose, onCompose }: Props) {
   }, [posts])
 
   const isMe = !!(currentUser && userId === currentUser.id)
-  const isFollowed = false
+  const isFollowing = !!currentUser?.following?.includes(userId ?? '')
+
+  if (!user) return null
+
+  const startEditing = () => {
+    setDraftName(user.name)
+    setDraftBio(user.bio)
+    setEditing(true)
+  }
+  const saveEditing = () => {
+    const name = draftName.trim().slice(0, 40)
+    updateProfile({ name: name || user.name, bio: draftBio.trim().slice(0, 160) })
+    setEditing(false)
+    sfx.click()
+  }
 
   return (
     <AnimatePresence>
@@ -88,8 +105,22 @@ export function OrbitView({ userId, onClose, onCompose }: Props) {
                   <PlanetBadge seed={user.seed} size={72} />
                 </motion.div>
                 <div className="min-w-0 flex-1 pr-8">
-                  <h2 className="truncate font-display text-xl font-semibold text-white">{user.name}</h2>
-                  <div className="truncate font-mono text-[11px] text-white/45">@{user.handle}</div>
+                  {editing ? (
+                    <input
+                      value={draftName}
+                      onChange={(e) => setDraftName(e.target.value)}
+                      maxLength={40}
+                      autoFocus
+                      aria-label="planet name"
+                      className="input !py-2 !text-base"
+                    />
+                  ) : (
+                    <h2 className="truncate font-display text-xl font-semibold text-white">{user.name}</h2>
+                  )}
+                  <div className="truncate font-mono text-[11px] text-white/45">
+                    @{user.handle}
+                    {isFollowing && <span className="ml-2 text-white/70">· following</span>}
+                  </div>
                   <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 font-mono text-[10px] text-white/50">
                     <span>
                       <b className="text-white/85">{posts.length}</b> satellites
@@ -104,7 +135,47 @@ export function OrbitView({ userId, onClose, onCompose }: Props) {
                 </div>
               </div>
 
-              <p className="mt-3 text-[13px] leading-relaxed text-white/60">{user.bio}</p>
+              {editing ? (
+                <div className="mt-3 space-y-2">
+                  <textarea
+                    value={draftBio}
+                    onChange={(e) => setDraftBio(e.target.value)}
+                    maxLength={160}
+                    rows={2}
+                    aria-label="planet bio"
+                    placeholder="transmit a short bio…"
+                    className="input resize-none !py-2 !text-[13px]"
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      onClick={saveEditing}
+                      className="tap flex-1 rounded-xl bg-gradient-to-r from-pulse to-glow py-2 font-display text-xs font-semibold text-black active:scale-[0.98]"
+                    >
+                      save
+                    </button>
+                    <button
+                      onClick={() => setEditing(false)}
+                      className="tap rounded-xl border border-white/12 px-4 py-2 font-mono text-[11px] text-white/60 hover:text-white active:bg-white/5"
+                    >
+                      cancel
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <p className="mt-3 text-[13px] leading-relaxed text-white/60">
+                    {user.bio || 'No bio transmitted.'}
+                  </p>
+                  {isMe && (
+                    <button
+                      onClick={startEditing}
+                      className="tap mt-2 font-mono text-[10px] uppercase tracking-[0.18em] text-white/35 transition-colors hover:text-white/70"
+                    >
+                      ✎ edit profile
+                    </button>
+                  )}
+                </>
+              )}
 
               {/* orbit density visualisation */}
               <div className="relative mt-4 h-[74px] overflow-hidden rounded-2xl border border-white/[0.07] bg-black/30">
@@ -156,23 +227,25 @@ export function OrbitView({ userId, onClose, onCompose }: Props) {
                 ) : (
                   <>
                     <button
+                      onClick={() => toggleFollow(user.id)}
+                      aria-pressed={isFollowing}
+                      className={`tap flex-1 rounded-xl border py-2.5 font-display text-xs font-semibold tracking-wide transition-all active:scale-[0.98] ${
+                        isFollowing
+                          ? 'border-white/30 bg-white/10 text-white'
+                          : 'border-white/12 bg-white/[0.04] text-white/80 hover:border-pulse/50 hover:text-white'
+                      }`}
+                    >
+                      {isFollowing ? '✦ FOLLOWING' : '+ FOLLOW'}
+                    </button>
+                    <button
                       onClick={() => {
                         sfx.signal()
                         if (posts[0]) toggleLike(posts[0].id)
                       }}
-                      disabled={!posts[0] || isFollowed}
+                      disabled={!posts[0]}
                       className="tap flex-1 rounded-xl border border-white/12 bg-white/[0.04] py-2.5 font-display text-xs font-semibold tracking-wide text-white/80 transition-all hover:border-nova/50 hover:text-white active:bg-white/[0.08] disabled:opacity-30"
                     >
-                      ★ STAR THEIR LATEST
-                    </button>
-                    <button
-                      onClick={() => {
-                        sfx.click()
-                        onClose()
-                      }}
-                      className="tap rounded-xl border border-white/12 bg-white/[0.04] px-4 py-2.5 font-mono text-[11px] text-white/60 hover:text-white active:bg-white/[0.08]"
-                    >
-                      return
+                      ★ STAR LATEST
                     </button>
                   </>
                 )}

@@ -1,8 +1,5 @@
 import { motion } from 'framer-motion'
 import { useMemo, useRef, useState } from 'react'
-import type { User } from '../types'
-import { PlanetBadge } from './PlanetBadge'
-import { TAU } from '../lib/math'
 
 export interface MiniPlanet {
   id: string
@@ -10,6 +7,8 @@ export interface MiniPlanet {
   y: number
   r: number
   nova: boolean
+  name?: string
+  handle?: string
 }
 
 export const MINI_WORLD = 3400
@@ -96,14 +95,14 @@ export function MiniMap({
 }
 
 function MiniTooltip({ planet }: { planet: MiniPlanet }) {
-  const { user } = planet as MiniPlanet & { user?: User }
   return (
     <motion.div
       initial={{ opacity: 0, y: 4 }}
       animate={{ opacity: 1, y: 0 }}
       className="absolute -top-8 left-1/2 z-20 -translate-x-1/2 whitespace-nowrap rounded-lg border border-white/10 bg-black/80 px-2 py-1 font-mono text-[9px] text-white/70 backdrop-blur"
     >
-      {planet.nova ? '★ supernova planet' : `planet ${planet.id.slice(0, 6)}`}
+      {planet.nova ? '★ ' : ''}
+      {planet.handle ? `@${planet.handle}` : `planet ${planet.id.slice(0, 6)}`}
     </motion.div>
   )
 }

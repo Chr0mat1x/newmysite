@@ -64,6 +64,8 @@ export class GalaxyEngine {
   selected: string | null = null
   showLabels = true
   warp = 0
+  /** OS "reduce motion" — freeze orbital drift and skip warp streaks. */
+  reduced = false
 
   constructor(canvas: HTMLCanvasElement) {
     const ctx = canvas.getContext('2d', { alpha: false })
@@ -216,7 +218,7 @@ export class GalaxyEngine {
     for (const n of this.nodes) {
       if (n.appear < 1) n.appear = clamp(n.appear + dt * 1.6, 0, 1)
       n.pulse = Math.max(0, n.pulse - dt)
-      for (const s of n.satellites) s.angle += s.speed * dt
+      if (!this.reduced) for (const s of n.satellites) s.angle += s.speed * dt
     }
 
     for (const b of this.bursts) b.t += dt
@@ -241,7 +243,7 @@ export class GalaxyEngine {
     this.starfield.resize(w, h)
     this.starfield.draw(ctx, this.cam.x, this.cam.y, time)
 
-    if (this.warp > 0.02) this.drawWarp()
+    if (this.warp > 0.02 && !this.reduced) this.drawWarp()
 
     // --- world space ------------------------------------------------------
     ctx.translate(w / 2, h / 2)

@@ -4,6 +4,7 @@ import { layoutGalaxy } from '../engine/layout'
 import { useGalaxy } from '../state/store'
 import type { Post, User } from '../types'
 import { clamp } from '../lib/math'
+import { usePrefersReducedMotion } from '../lib/useMedia'
 
 export interface GalaxyHandle {
   engine: GalaxyEngine | null
@@ -28,6 +29,9 @@ export const GalaxyCanvas = forwardRef<GalaxyHandle, Props>(function GalaxyCanva
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const engineRef = useRef<GalaxyEngine | null>(null)
   const hoverRef = useRef<string | null>(null)
+  const reducedMotion = usePrefersReducedMotion()
+  const reducedRef = useRef(reducedMotion)
+  reducedRef.current = reducedMotion
   const { state, users, currentUser } = useGalaxy()
 
   const layouts = useMemo(() => {
@@ -305,6 +309,7 @@ export const GalaxyCanvas = forwardRef<GalaxyHandle, Props>(function GalaxyCanva
           onHover(id)
         }
       }
+      eng.reduced = reducedRef.current
       eng.update(dt, now / 1000)
       const stats = eng.render(now / 1000)
       // push stats at ~4Hz so React never re-renders per frame

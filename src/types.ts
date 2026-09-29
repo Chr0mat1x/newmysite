@@ -10,6 +10,10 @@ export interface User {
   email?: string
   /** demo-grade salted hash, see lib/auth.ts. Not real security. */
   passwordHash?: string
+  /** ids of users this planet is following — the "constellation" */
+  following?: string[]
+  /** ids of posts this planet has bookmarked — the "cargo hold" */
+  saved?: string[]
 }
 
 export interface Signal {

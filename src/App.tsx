@@ -9,6 +9,8 @@ import { SupernovaFeed } from './components/SupernovaFeed'
 import { MiniMap, type MiniPlanet, MINI_WORLD } from './components/MiniMap'
 import { MobileMenu } from './components/MobileMenu'
 import { LinkEmailInline } from './components/LinkEmailInline'
+import { CommandPalette } from './components/CommandPalette'
+import { SignalsConsole } from './components/SignalsConsole'
 import { Toasts, type Toast } from './components/Toasts'
 import { Onboarding } from './components/Onboarding'
 import { PlanetBadge } from './components/PlanetBadge'
@@ -18,12 +20,16 @@ import { useIsMobile } from './lib/useMedia'
 import { isMuted, setMuted, startAmbient, resumeAudio, sfx } from './lib/audio'
 
 function Orbit() {
-  const { currentUser, users, state, logout, resetGalaxy, supernovas, userById } = useGalaxy()
+  const { currentUser, users, state, logout, resetGalaxy, supernovas, userById, following, savedPosts, transmissions } =
+    useGalaxy()
   const handleRef = useRef<GalaxyHandle>(null)
   const [selected, setSelected] = useState<string | null>(null)
   const [hovered, setHovered] = useState<string | null>(null)
   const [composerOpen, setComposerOpen] = useState(false)
   const [novaOpen, setNovaOpen] = useState(false)
+  const [paletteOpen, setPaletteOpen] = useState(false)
+  const [consoleOpen, setConsoleOpen] = useState(false)
+  const [consoleTab, setConsoleTab] = useState<'transmissions' | 'constellation' | 'cargo'>('transmissions')
   const [onboarding, setOnboarding] = useState(false)
   const [toasts, setToasts] = useState<Toast[]>([])
   const [stats, setStats] = useState<RenderStats>({ fps: 60, visible: 0, total: 0 })
@@ -46,15 +52,20 @@ function Orbit() {
 
   const minimap = useMemo<MiniPlanet[]>(
     () =>
-      layouts.map((l) => ({
-        id: l.id,
-        x: l.x,
-        y: l.y,
-        r: l.radius,
-        nova: Object.values(state.posts).some(
-          (p) => p.authorId === l.id && p.supernovaAt && Date.now() - p.supernovaAt < 86400000,
-        ),
-      })),
+      layouts.map((l) => {
+        const u = userById(l.id)
+        return {
+          id: l.id,
+          x: l.x,
+          y: l.y,
+          r: l.radius,
+          name: u?.name,
+          handle: u?.handle,
+          nova: Object.values(state.posts).some(
+            (p) => p.authorId === l.id && p.supernovaAt && Date.now() - p.supernovaAt < 86400000,
+          ),
+        }
+      }),
     [layouts, state.posts, userById],
   )
 
@@ -111,25 +122,48 @@ function Orbit() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement)?.tagName
-      if (tag === 'INPUT' || tag === 'TEXTAREA') return
+      const typing = tag === 'INPUT' || tag === 'TEXTAREA'
+      // ⌘K / Ctrl+K opens the palette even while typing; '/' opens it when idle
+      if ((e.key === 'k' || e.key === 'K') && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault()
+        sfx.click()
+        setPaletteOpen((o) => !o)
+        return
+      }
+      if (e.key === '/' && !typing) {
+        e.preventDefault()
+        sfx.click()
+        setPaletteOpen(true)
+        return
+      }
+      if (typing) return
       const step = 420
       if (e.key === 'ArrowLeft' || e.key === 'a') handleRef.current?.nudge(-step, 0)
       if (e.key === 'ArrowRight' || e.key === 'd') handleRef.current?.nudge(step, 0)
       if (e.key === 'ArrowUp' || e.key === 'w') handleRef.current?.nudge(0, -step)
       if (e.key === 'ArrowDown' || e.key === 's') handleRef.current?.nudge(0, step)
       if (e.key === 'c') handleRef.current?.centerOnMe()
+      if (e.key === 'f') handleRef.current?.flyToPlanet(following[0]?.id ?? '', 1.6)
       if (e.key === 'Escape') {
         // close the topmost overlay first, then deselect
-        setComposerOpen((open) => {
+        setPaletteOpen((open) => {
           if (open) return false
-          setNovaOpen((n) => {
-            if (n) return false
-            setMenuOpen((m) => {
-              if (m) return false
-              setSelected(null)
-              return m
+          setConsoleOpen((c) => {
+            if (c) return false
+            setComposerOpen((co) => {
+              if (co) return false
+              setNovaOpen((n) => {
+                if (n) return false
+                setMenuOpen((m) => {
+                  if (m) return false
+                  setSelected(null)
+                  return m
+                })
+                return n
+              })
+              return co
             })
-            return n
+            return c
           })
           return open
         })
@@ -137,13 +171,37 @@ function Orbit() {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [])
+  }, [following])
 
   const visit = useCallback((id: string) => {
     setSelected(id)
     handleRef.current?.select(id)
     handleRef.current?.flyToPlanet(id, 1.6)
   }, [])
+
+  // Flying somewhere always dismisses the overlays that could sit on top of the
+  // orbit panel — otherwise their backdrops swallow the tap that opened it.
+  const goTo = useCallback(
+    (id: string) => {
+      setConsoleOpen(false)
+      setMenuOpen(false)
+      visit(id)
+    },
+    [visit],
+  )
+
+  const openConsole = useCallback((tab: 'transmissions' | 'constellation' | 'cargo') => {
+    sfx.click()
+    setConsoleTab(tab)
+    setConsoleOpen(true)
+  }, [])
+
+  const flyRandom = useCallback(() => {
+    sfx.launch()
+    const others = layouts.filter((l) => l.id !== currentUser?.id)
+    const pick = others[Math.floor(Math.random() * others.length)]
+    if (pick) visit(pick.id)
+  }, [layouts, currentUser, visit])
 
   // A tap opens the orbit panel on pointerup; the browser then fires a synthetic
   // click at the same spot, which would land on the just-mounted backdrop and
@@ -223,7 +281,7 @@ function Orbit() {
 
           {currentUser && (
             <button
-              onClick={() => visit(currentUser.id)}
+              onClick={() => goTo(currentUser.id)}
               onMouseEnter={() => sfx.hover()}
               className="hidden items-center gap-2.5 rounded-2xl border border-white/10 bg-black/45 px-3 py-2 backdrop-blur-xl transition-colors hover:border-pulse/40 sm:flex"
             >
@@ -239,6 +297,33 @@ function Orbit() {
         </div>
 
         <div className="pointer-events-auto flex items-center gap-2">
+          <button
+            onClick={() => {
+              sfx.click()
+              setPaletteOpen(true)
+            }}
+            aria-label="search the galaxy"
+            className="tap hidden items-center gap-2 rounded-2xl border border-white/10 bg-black/45 px-3 py-2.5 font-mono text-[10px] uppercase tracking-[0.14em] text-white/50 backdrop-blur-xl transition-colors hover:border-pulse/40 hover:text-white sm:flex"
+          >
+            <span>⌕ search</span>
+            <kbd className="rounded border border-white/12 px-1.5 py-0.5 text-[9px] text-white/35">⌘K</kbd>
+          </button>
+
+          {currentUser && (
+            <button
+              onClick={() => openConsole('transmissions')}
+              aria-label="open signals console"
+              className="tap relative rounded-2xl border border-white/10 bg-black/45 px-3 py-2.5 backdrop-blur-xl transition-colors hover:border-pulse/40 active:border-pulse/40"
+            >
+              <span className="text-sm leading-none">◉</span>
+              {transmissions.length + following.length + savedPosts.length > 0 && (
+                <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-white px-1 font-mono text-[9px] font-semibold text-black">
+                  {transmissions.length + following.length + savedPosts.length}
+                </span>
+              )}
+            </button>
+          )}
+
           <button
             onClick={() => setNovaOpen(true)}
             aria-label={`${supernovas.length} supernovae`}
@@ -305,7 +390,7 @@ function Orbit() {
             planets={minimap}
             cam={handleRef.current?.engine?.cam ?? { x: 0, y: 0, zoom: 1 }}
             meId={currentUser?.id ?? null}
-            onJump={visit}
+            onJump={goTo}
           />
         </div>
 
@@ -317,7 +402,7 @@ function Orbit() {
             return (
               <button
                 key={l.id}
-                onClick={() => visit(l.id)}
+                onClick={() => goTo(l.id)}
                 onMouseEnter={() => sfx.hover()}
                 className="flex items-center gap-2 rounded-xl border border-white/[0.07] bg-black/40 px-2.5 py-1.5 backdrop-blur-xl transition-all hover:border-pulse/40 hover:bg-black/60"
               >
@@ -335,7 +420,7 @@ function Orbit() {
         <div aria-label="quick actions" className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex items-end justify-center gap-2 px-3 pb-safe sm:hidden">
           <div className="pointer-events-auto mb-3 flex w-full max-w-sm items-stretch gap-2 rounded-2xl border border-white/10 bg-black/60 p-2 backdrop-blur-xl">
             <button
-              onClick={() => visit(currentUser.id)}
+              onClick={() => goTo(currentUser.id)}
               className="tap flex flex-1 flex-col items-center justify-center rounded-xl py-1.5 font-mono text-[9px] uppercase tracking-[0.14em] text-white/55 transition-colors active:bg-white/10 active:text-white"
             >
               <span className="text-base leading-none">◉</span>
@@ -407,14 +492,37 @@ function Orbit() {
       {/* ---------- panels ---------- */}
       <OrbitView userId={selected} onClose={closeIfSettled} onCompose={() => setComposerOpen(true)} />
       <Composer open={composerOpen} onClose={() => setComposerOpen(false)} />
-      <SupernovaFeed open={novaOpen} onClose={() => setNovaOpen(false)} onVisit={visit} />
+      <SupernovaFeed open={novaOpen} onClose={() => setNovaOpen(false)} onVisit={goTo} />
+      <SignalsConsole
+        open={consoleOpen}
+        onClose={() => setConsoleOpen(false)}
+        initialTab={consoleTab}
+        onVisit={goTo}
+      />
+      <CommandPalette
+        open={paletteOpen}
+        onClose={() => setPaletteOpen(false)}
+        onVisit={goTo}
+        onCompose={() => setComposerOpen(true)}
+        onConsole={() => openConsole('transmissions')}
+        onNova={() => setNovaOpen(true)}
+        onRandom={flyRandom}
+      />
       <MobileMenu
         open={menuOpen}
         onClose={() => setMenuOpen(false)}
         planets={minimap}
         cam={handleRef.current?.engine?.cam ?? { x: 0, y: 0, zoom: 1 }}
         leaders={leaders}
-        onJump={visit}
+        onJump={goTo}
+        onConsole={(tab) => {
+          setMenuOpen(false)
+          openConsole(tab)
+        }}
+        onSearch={() => {
+          setMenuOpen(false)
+          setPaletteOpen(true)
+        }}
       />
       <Toasts toasts={toasts} onDismiss={(id) => setToasts((p) => p.filter((t) => t.id !== id))} />
       <Onboarding

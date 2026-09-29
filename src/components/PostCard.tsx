@@ -8,7 +8,7 @@ import { timeAgo } from '../lib/math'
 import { sfx } from '../lib/audio'
 
 export function PostCard({ post, index = 0 }: { post: Post; index?: number }) {
-  const { currentUser, userById, toggleLike, addSignal, deletePost } = useGalaxy()
+  const { currentUser, userById, toggleLike, addSignal, deletePost, toggleSave } = useGalaxy()
   const [showSignals, setShowSignals] = useState(false)
   const [draft, setDraft] = useState('')
   const [imgOk, setImgOk] = useState(true)
@@ -17,6 +17,7 @@ export function PostCard({ post, index = 0 }: { post: Post; index?: number }) {
   if (!author) return null
 
   const liked = !!currentUser && post.likes.includes(currentUser.id)
+  const saved = !!currentUser?.saved?.includes(post.id)
   const nova = !!post.supernovaAt && Date.now() - post.supernovaAt < SUPERNOVA_TTL
   const progress = Math.min(1, post.likes.length / SUPERNOVA_THRESHOLD)
   const mine = currentUser?.id === post.authorId
@@ -140,6 +141,20 @@ export function PostCard({ post, index = 0 }: { post: Post; index?: number }) {
             <span className="font-mono">{post.signals.length}</span>
           </button>
 
+          <button
+            onMouseEnter={() => sfx.hover()}
+            onClick={() => toggleSave(post.id)}
+            aria-label={saved ? 'remove from cargo' : 'save to cargo'}
+            aria-pressed={saved}
+            className={`tap flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs transition-all active:scale-95 ${
+              saved
+                ? 'border-white/30 bg-white/10 text-white'
+                : 'border-white/10 bg-white/[0.03] text-white/60 hover:border-pulse/40 hover:text-white'
+            }`}
+          >
+            <Bookmark filled={saved} />
+          </button>
+
           <span className="font-mono text-[10px] text-white/25 max-sm:w-full max-sm:pt-0.5 sm:ml-auto">
             {nova
               ? `visible galaxy-wide · ${Math.max(1, Math.ceil((SUPERNOVA_TTL - (Date.now() - (post.supernovaAt ?? 0))) / 3600000))}h left`
@@ -216,6 +231,14 @@ function SignalIcon() {
       <path d="M4 12a8 8 0 0116 0" />
       <circle cx="12" cy="12" r="2" fill="currentColor" />
       <path d="M8 12a4 4 0 018 0" />
+    </svg>
+  )
+}
+
+function Bookmark({ filled }: { filled: boolean }) {
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill={filled ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinejoin="round">
+      <path d="M6 3h12a1 1 0 011 1v17l-7-4-7 4V4a1 1 0 011-1z" />
     </svg>
   )
 }

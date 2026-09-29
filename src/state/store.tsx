@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useReducer } from 'react'
-import type { GalaxyState, Post, User } from '../types'
+import type { GalaxyState, Post, Signal, User } from '../types'
 import { SUPERNOVA_TTL, SUPERNOVA_THRESHOLD } from '../types'
 import { loadState, saveState, uid } from '../lib/storage'
 import { buildSeedGalaxy, makeUser } from '../lib/seed'
@@ -18,6 +18,8 @@ type Action =
   | { type: 'toggleLike'; postId: string; userId: string }
   | { type: 'addSignal'; postId: string; signal: { id: string; authorId: string; text: string } }
   | { type: 'novaExpire' }
+  | { type: 'toggleFollow'; userId: string }
+  | { type: 'toggleSave'; postId: string }
   | { type: 'reset' }
 
 function reducer(state: GalaxyState, action: Action): GalaxyState {
@@ -94,6 +96,38 @@ function reducer(state: GalaxyState, action: Action): GalaxyState {
       }
       return changed ? { ...state, posts } : state
     }
+    case 'toggleFollow': {
+      const me = state.currentUserId ? state.users[state.currentUserId] : null
+      if (!me || action.userId === me.id) return state
+      const following = me.following ?? []
+      const has = following.includes(action.userId)
+      return {
+        ...state,
+        users: {
+          ...state.users,
+          [me.id]: {
+            ...me,
+            following: has ? following.filter((f) => f !== action.userId) : [...following, action.userId],
+          },
+        },
+      }
+    }
+    case 'toggleSave': {
+      const me = state.currentUserId ? state.users[state.currentUserId] : null
+      if (!me) return state
+      const saved = me.saved ?? []
+      const has = saved.includes(action.postId)
+      return {
+        ...state,
+        users: {
+          ...state.users,
+          [me.id]: {
+            ...me,
+            saved: has ? saved.filter((s) => s !== action.postId) : [...saved, action.postId],
+          },
+        },
+      }
+    }
     default:
       return state
   }
@@ -121,6 +155,14 @@ interface Ctx {
   deletePost: (id: string) => void
   toggleLike: (postId: string) => void
   addSignal: (postId: string, text: string) => void
+  toggleFollow: (userId: string) => void
+  toggleSave: (postId: string) => void
+  /** Users the current planet follows. */
+  following: User[]
+  /** Posts the current planet has bookmarked, newest first. */
+  savedPosts: Post[]
+  /** Recent signals other planets left on the current planet's posts. */
+  transmissions: { signal: Signal; post: Post; user: User }[]
   resetGalaxy: () => void
 }
 
@@ -289,7 +331,53 @@ export function GalaxyProvider({ children }: { children: React.ReactNode }) {
     dispatch({ type: 'hydrate', state: fresh })
   }, [])
 
+  const toggleFollow = useCallback(
+    (userId: string) => {
+      if (!state.currentUserId) return
+      if (state.users[state.currentUserId]?.following?.includes(userId)) sfx.click()
+      else sfx.signal()
+      dispatch({ type: 'toggleFollow', userId })
+    },
+    [state.currentUserId, state.users],
+  )
+
+  const toggleSave = useCallback(
+    (postId: string) => {
+      if (!state.currentUserId) return
+      sfx.click()
+      dispatch({ type: 'toggleSave', postId })
+    },
+    [state.currentUserId],
+  )
+
   const currentUser = state.currentUserId ? state.users[state.currentUserId] ?? null : null
+
+  const following = useMemo(() => {
+    const ids = currentUser?.following ?? []
+    return ids.map((id) => state.users[id]).filter((u): u is User => !!u)
+  }, [currentUser, state.users])
+
+  const savedPosts = useMemo(() => {
+    const ids = currentUser?.saved ?? []
+    return ids
+      .map((id) => state.posts[id])
+      .filter((p): p is Post => !!p)
+      .sort((a, b) => b.createdAt - a.createdAt)
+  }, [currentUser, state.posts])
+
+  const transmissions = useMemo(() => {
+    if (!currentUser) return []
+    const out: { signal: Signal; post: Post; user: User }[] = []
+    for (const post of Object.values(state.posts)) {
+      if (post.authorId !== currentUser.id) continue
+      for (const signal of post.signals) {
+        if (signal.authorId === currentUser.id) continue
+        const user = state.users[signal.authorId]
+        if (user) out.push({ signal, post, user })
+      }
+    }
+    return out.sort((a, b) => b.signal.createdAt - a.signal.createdAt).slice(0, 40)
+  }, [currentUser, state.posts, state.users])
 
   const value: Ctx = {
     state,
@@ -309,6 +397,11 @@ export function GalaxyProvider({ children }: { children: React.ReactNode }) {
     deletePost,
     toggleLike,
     addSignal,
+    toggleFollow,
+    toggleSave,
+    following,
+    savedPosts,
+    transmissions,
     resetGalaxy,
   }
 

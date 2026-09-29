@@ -64,6 +64,29 @@ all state lives in `localStorage` under `orbit.galaxy.v1`. The galaxy is one
 - Planet colour/texture comes from `user.seed` (procedural). "Remix my planet"
   XORs the seed.
 
+## Feature map (beyond the galaxy canvas)
+
+- **Command palette** (`components/CommandPalette.tsx`) — ⌘K / Ctrl+K / `/`.
+  Fuzzy-matches planets and actions, arrow keys + Enter fly the camera.
+  Search opens while typing in other fields, so it is exempted from the typing
+  guard in App's keydown handler.
+- **Signals console** (`components/SignalsConsole.tsx`) — three tabs:
+  `transmissions` (signals received on my posts), `constellation` (followed
+  planets), `cargo` (bookmarked posts). Desktop slides in from the left,
+  mobile rises as a bottom sheet.
+- **Follow** (`state/store.tsx` → `toggleFollow`) — stored on
+  `user.following: string[]`. Drives the constellation tab, the `f` shortcut
+  (fly to first followed planet) and the `· following` marker in OrbitView.
+- **Cargo / bookmarks** (`toggleSave`) — stored on `user.saved: string[]`;
+  the bookmark button on every PostCard.
+- **Profile editing** — OrbitView exposes name + bio edit on your own orbit.
+- **Shortcuts** — arrows/WASD pan, `c` centre on me, `f` fly to first follow,
+  Escape closes the topmost overlay (palette → console → composer → nova →
+  menu → orbit panel).
+- **Navigation invariant** — always use `goTo` in App, never raw `visit`:
+  `goTo` also closes the console/menu so their backdrops cannot swallow the
+  tap that opens the orbit panel. This was a real bug caught by the E2E suite.
+
 ## Verification
 
 No test runner is wired into the repo. Bug-hunting is done with throwaway

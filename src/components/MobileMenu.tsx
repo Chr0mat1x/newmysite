@@ -23,6 +23,8 @@ export function MobileMenu({
   cam,
   leaders,
   onJump,
+  onConsole,
+  onSearch,
 }: {
   open: boolean
   onClose: () => void
@@ -30,8 +32,10 @@ export function MobileMenu({
   cam: { x: number; y: number; zoom: number }
   leaders: Leader[]
   onJump: (id: string) => void
+  onConsole: (tab: 'transmissions' | 'constellation' | 'cargo') => void
+  onSearch: () => void
 }) {
-  const { currentUser, userById, logout, resetGalaxy } = useGalaxy()
+  const { currentUser, userById, logout, resetGalaxy, transmissions, following, savedPosts } = useGalaxy()
   const [confirmReset, setConfirmReset] = useState(false)
 
   return (
@@ -94,6 +98,52 @@ export function MobileMenu({
                   </button>
                 </div>
               )}
+
+              <div>
+                <div className="mb-2 font-mono text-[10px] uppercase tracking-[0.2em] text-white/30">signals</div>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => {
+                      sfx.click()
+                      onConsole('transmissions')
+                    }}
+                    className="tap flex items-center justify-between rounded-xl border border-white/[0.08] bg-white/[0.02] px-3 py-2.5 font-mono text-[10px] uppercase tracking-[0.12em] text-white/60 active:bg-white/[0.06]"
+                  >
+                    transmissions
+                    <span className="text-white/35">{transmissions.length}</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      sfx.click()
+                      onConsole('constellation')
+                    }}
+                    className="tap flex items-center justify-between rounded-xl border border-white/[0.08] bg-white/[0.02] px-3 py-2.5 font-mono text-[10px] uppercase tracking-[0.12em] text-white/60 active:bg-white/[0.06]"
+                  >
+                    constellation
+                    <span className="text-white/35">{following.length}</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      sfx.click()
+                      onConsole('cargo')
+                    }}
+                    className="tap flex items-center justify-between rounded-xl border border-white/[0.08] bg-white/[0.02] px-3 py-2.5 font-mono text-[10px] uppercase tracking-[0.12em] text-white/60 active:bg-white/[0.06]"
+                  >
+                    cargo
+                    <span className="text-white/35">{savedPosts.length}</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      sfx.click()
+                      onSearch()
+                    }}
+                    className="tap flex items-center justify-between rounded-xl border border-white/[0.08] bg-white/[0.02] px-3 py-2.5 font-mono text-[10px] uppercase tracking-[0.12em] text-white/60 active:bg-white/[0.06]"
+                  >
+                    search
+                    <span className="text-white/35">⌕</span>
+                  </button>
+                </div>
+              </div>
 
               <div>
                 <div className="mb-2 font-mono text-[10px] uppercase tracking-[0.2em] text-white/30">galaxy map</div>
