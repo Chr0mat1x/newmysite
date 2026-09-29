@@ -12,9 +12,31 @@ post orbits them as a satellite. Monochrome space aesthetic.
 
 ## Stack
 
-React 18 + TypeScript + Vite 5 + TailwindCSS 3 + Framer Motion. No backend:
-all state lives in `localStorage` under `orbit.galaxy.v1`. The galaxy is one
-`<canvas>` (2D context) driven by `requestAnimationFrame`.
+React 18 + TypeScript + Vite 5 + TailwindCSS 3 + Framer Motion. The galaxy is
+one `<canvas>` (2D context) driven by `requestAnimationFrame`.
+
+Persistence sits behind the `Backend` interface (`src/lib/backends/types.ts`).
+`LocalBackend` (localStorage, key `orbit.galaxy.v1`) is the default and keeps the
+app a complete offline product. `SupabaseBackend` takes over when
+`VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY` are set at build time
+(`src/lib/supabase.ts` exports the `isRemote` switch). The store holds `mode` and
+`linkStatus` so the HUD can show which one is live.
+
+## Local Supabase
+
+Docker is required. `npx supabase start` boots Postgres :54322, REST/Auth
+:54321, Studio :54323, Mailpit :54324. Copy the printed API URL + anon key into
+`.env.local` (gitignored; `.env.example` is the template). Restart `npm run dev`
+afterwards — Vite only reads env files at startup.
+
+The migration `supabase/migrations/*_orbit.sql` owns the schema, RLS, the signup
+trigger and `seed_demo_galaxy()`. It is idempotent (drops before create), so it
+can be re-applied. `supabase/config.toml` has `enable_anonymous_sign_ins = true`
+— required for the visitor path.
+
+Test rows accumulate in the local DB. To get back to a clean demo galaxy, delete
+the non-seeded planets via the REST API with the service-role key, or
+`npx supabase db reset` (also re-seeds).
 
 ## Layout
 
@@ -27,10 +49,18 @@ all state lives in `localStorage` under `orbit.galaxy.v1`. The galaxy is one
 - `src/engine/layout.ts` — golden-angle spiral placement; radius from activity.
 - `src/components/` — OrbitView, Composer, SupernovaFeed, MobileMenu, MiniMap,
   PostCard, AuthGate, Onboarding, Toasts, PlanetBadge.
-- `src/state/store.tsx` — reducer + context. Single source of truth.
+- `src/state/store.tsx` — context + async actions. Single source of truth. The
+  `run()` helper pushes a backend result into state and surfaces failures as
+  `lastError`; auth calls (`login`/`signUp`/`loginAs`/`linkEmail`) return an
+  error string instead, because the forms render it inline.
+- `src/state/reducer.ts` — pure transitions, shared so the local backend can
+  reuse them.
+- `src/lib/backends/` — `types.ts` (the interface), `local.ts` (localStorage),
+  `supabase.ts` (Auth + Postgres + RLS).
 - `src/lib/` — `seed.ts` (mock galaxy), `procgen.ts` (planet sprites/hashing),
-  `auth.ts` (email hashing/validation), `audio.ts` (procedural WebAudio),
-  `storage.ts`, `useMedia.ts`, `math.ts`.
+  `auth.ts` (email hashing/validation for the offline backend), `audio.ts`
+  (procedural WebAudio), `storage.ts`, `supabase.ts`, `mappers.ts`,
+  `useMedia.ts`, `math.ts`.
 - `src/types.ts` — `User`, `Post`, `Signal`, `GalaxyState`,
   `SUPERNOVA_THRESHOLD` (10), `SUPERNOVA_TTL` (24h), `SEED_VERSION`.
 
@@ -101,8 +131,32 @@ inert post text, and the full email auth flow (signup, duplicate email, wrong
 password, unknown email, invalid format, short password, unique handles,
 demo-planet explore, link-email, mobile signup).
 
+Against a **live Supabase** the suite also covers signup to planet row, satellite
+creation and persistence, starring, follow, cargo, session restore on re-login,
+duplicate-email refusal, the anonymous visitor path, and mobile layout. The
+offline suite (`features.mjs`, `regress.mjs`) must stay green after any backend
+change — it is what proves the localStorage fallback still works.
+
+### Backend gotchas
+
+- The splash screen keys off `ready` (first load finished), **not** `busy`.
+  Gating it on `busy` unmounted the auth form mid-request and destroyed a failed
+  sign-in's error message. Do not reintroduce that.
+- Effects that clear their own trigger state must do so *inside* the timer, not
+  before it — an early `clearInitialFocus()` cancelled its own cleanup and the
+  visitor never flew to the picked planet.
+- `signOut` fully tears down the remote session; the store resets to an empty
+  galaxy rather than keeping stale rows around.
+- Supabase's auth messages are translated to ORBIT's copy in the backend's
+  `friendlyAuthError`; keep user-facing strings there, not in components.
+
 ## Status
 
-Email registration replaced nickname-only sign-in. Auth is local-only — there
-is no server, `src/lib/auth.ts` hashes passwords in the browser, and this is
-demo-grade, not real security. A production build needs a real backend.
+Email registration replaced nickname-only sign-in. Supabase is now wired in:
+schema + RLS + triggers live in `supabase/migrations/`, the client layer in
+`src/lib/backends/`, and the app runs against the shared galaxy whenever the two
+`VITE_SUPABASE_*` vars are set.
+
+Without them the offline `LocalBackend` still applies, and there `src/lib/auth.ts`
+hashes passwords in the browser — demo-grade, not real security. Set the env vars
+(and enable anonymous sign-ins) before calling any deployment production-ready.

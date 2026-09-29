@@ -1,137 +1,21 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useReducer } from 'react'
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import type { GalaxyState, Post, Signal, User } from '../types'
-import { SUPERNOVA_TTL, SUPERNOVA_THRESHOLD } from '../types'
-import { loadState, saveState, uid } from '../lib/storage'
-import { buildSeedGalaxy, makeUser } from '../lib/seed'
+import { SUPERNOVA_TTL } from '../types'
+import { LocalBackend } from '../lib/backends/local'
+import { SupabaseBackend } from '../lib/backends/supabase'
+import type { Backend } from '../lib/backends/types'
+import { isRemote, type LinkStatus } from '../lib/supabase'
 import { sfx } from '../lib/audio'
-import { hashString } from '../lib/procgen'
-import { hashPassword, handleFromIdentity, isValidEmail, isValidPassword, makeSalt, normalizeEmail, verifyPassword } from '../lib/auth'
 
-type Action =
-  | { type: 'hydrate'; state: GalaxyState }
-  | { type: 'login'; user: User }
-  | { type: 'logout' }
-  | { type: 'updateUser'; patch: Partial<User> }
-  | { type: 'linkEmail'; userId: string; email: string; passwordHash: string }
-  | { type: 'addPost'; post: Post }
-  | { type: 'deletePost'; id: string }
-  | { type: 'toggleLike'; postId: string; userId: string }
-  | { type: 'addSignal'; postId: string; signal: { id: string; authorId: string; text: string } }
-  | { type: 'novaExpire' }
-  | { type: 'toggleFollow'; userId: string }
-  | { type: 'toggleSave'; postId: string }
-  | { type: 'reset' }
+// Pick the backend once, at module load. `isRemote` is decided by whether the
+// VITE_SUPABASE_* env vars were present at build time.
+const backend: Backend = isRemote ? new SupabaseBackend() : new LocalBackend()
 
-function reducer(state: GalaxyState, action: Action): GalaxyState {
-  switch (action.type) {
-    case 'hydrate':
-      return action.state
-    case 'login':
-      return {
-        ...state,
-        users: { ...state.users, [action.user.id]: action.user },
-        currentUserId: action.user.id,
-      }
-    case 'logout':
-      return { ...state, currentUserId: null }
-    case 'updateUser': {
-      if (!state.currentUserId) return state
-      const cur = state.users[state.currentUserId]
-      if (!cur) return state
-      return { ...state, users: { ...state.users, [cur.id]: { ...cur, ...action.patch } } }
-    }
-    case 'linkEmail': {
-      const u = state.users[action.userId]
-      if (!u) return state
-      return {
-        ...state,
-        users: { ...state.users, [action.userId]: { ...u, email: action.email, passwordHash: action.passwordHash } },
-      }
-    }
-    case 'addPost':
-      return { ...state, posts: { ...state.posts, [action.post.id]: action.post } }
-    case 'deletePost': {
-      const posts = { ...state.posts }
-      delete posts[action.id]
-      return { ...state, posts }
-    }
-    case 'toggleLike': {
-      const post = state.posts[action.postId]
-      if (!post) return state
-      const liked = post.likes.includes(action.userId)
-      const likes = liked
-        ? post.likes.filter((l) => l !== action.userId)
-        : [...post.likes, action.userId]
-      const supernovaAt =
-        likes.length >= SUPERNOVA_THRESHOLD
-          ? post.supernovaAt ?? Date.now()
-          : null
-      return {
-        ...state,
-        posts: { ...state.posts, [action.postId]: { ...post, likes, supernovaAt } },
-      }
-    }
-    case 'addSignal': {
-      const post = state.posts[action.postId]
-      if (!post) return state
-      const signal = {
-        ...action.signal,
-        createdAt: Date.now(),
-        phase: Math.random() * Math.PI * 2,
-      }
-      return {
-        ...state,
-        posts: { ...state.posts, [action.postId]: { ...post, signals: [...post.signals, signal] } },
-      }
-    }
-    case 'novaExpire': {
-      const now = Date.now()
-      let changed = false
-      const posts: Record<string, Post> = {}
-      for (const [id, p] of Object.entries(state.posts)) {
-        if (p.supernovaAt && now - p.supernovaAt > SUPERNOVA_TTL) {
-          posts[id] = { ...p, supernovaAt: null }
-          changed = true
-        } else posts[id] = p
-      }
-      return changed ? { ...state, posts } : state
-    }
-    case 'toggleFollow': {
-      const me = state.currentUserId ? state.users[state.currentUserId] : null
-      if (!me || action.userId === me.id) return state
-      const following = me.following ?? []
-      const has = following.includes(action.userId)
-      return {
-        ...state,
-        users: {
-          ...state.users,
-          [me.id]: {
-            ...me,
-            following: has ? following.filter((f) => f !== action.userId) : [...following, action.userId],
-          },
-        },
-      }
-    }
-    case 'toggleSave': {
-      const me = state.currentUserId ? state.users[state.currentUserId] : null
-      if (!me) return state
-      const saved = me.saved ?? []
-      const has = saved.includes(action.postId)
-      return {
-        ...state,
-        users: {
-          ...state.users,
-          [me.id]: {
-            ...me,
-            saved: has ? saved.filter((s) => s !== action.postId) : [...saved, action.postId],
-          },
-        },
-      }
-    }
-    default:
-      return state
-  }
+function emptyGalaxy(): GalaxyState {
+  return { version: 1, users: {}, posts: {}, currentUserId: null }
 }
+
+const message = (e: unknown): string => (e instanceof Error ? e.message : 'something went wrong')
 
 interface Ctx {
   state: GalaxyState
@@ -141,17 +25,30 @@ interface Ctx {
   postById: (id: string) => Post | undefined
   userById: (id: string) => User | undefined
   supernovas: Post[]
+  /** which data source is live, for the HUD link indicator */
+  mode: 'local' | 'supabase'
+  linkStatus: LinkStatus
+  /** a write or load is in flight */
+  busy: boolean
+  /** true once the first galaxy load has completed (splash can go away) */
+  ready: boolean
+  /** the most recent failure, already human-readable */
+  lastError: string | null
+  clearLastError: () => void
+  /** set after a visitor enters, so the camera can fly to the planet they picked */
+  initialFocus: string | null
+  clearInitialFocus: () => void
   /** Sign in with email + password. Returns an error message, or null on success. */
-  login: (email: string, password: string) => string | null
+  login: (email: string, password: string) => Promise<string | null>
   /** Create a new planet. Returns an error message, or null on success. */
-  signUp: (email: string, password: string, name: string, planetVariant?: number) => string | null
+  signUp: (email: string, password: string, name: string, planetVariant?: number) => Promise<string | null>
   /** Enter as an existing planet without credentials (seeded demo accounts). */
-  loginAs: (userId: string) => void
-  /** Attach an email + password to the current local account. */
-  linkEmail: (email: string, password: string) => string | null
+  loginAs: (userId: string) => Promise<string | null>
+  /** Attach an email + password to the current account. Returns an error or null. */
+  linkEmail: (email: string, password: string) => Promise<string | null>
   logout: () => void
   updateProfile: (patch: Partial<User>) => void
-  createPost: (text: string, image?: string) => Post | null
+  createPost: (text: string, image?: string) => void
   deletePost: (id: string) => void
   toggleLike: (postId: string) => void
   addSignal: (postId: string, text: string) => void
@@ -168,20 +65,64 @@ interface Ctx {
 
 const GalaxyContext = createContext<Ctx | null>(null)
 
-function initial(): GalaxyState {
-  return loadState() ?? buildSeedGalaxy()
-}
-
 export function GalaxyProvider({ children }: { children: React.ReactNode }) {
-  const [state, dispatch] = useReducer(reducer, undefined, initial)
+  const [state, dispatch] = useReducer(
+    (s: GalaxyState, a: GalaxyState | { type: 'hydrate'; state: GalaxyState }) =>
+      'type' in a ? a.state : a,
+    undefined,
+    emptyGalaxy,
+  )
+  const [busy, setBusy] = useState(true)
+  const [ready, setReady] = useState(false)
+  const [lastError, setLastError] = useState<string | null>(null)
+  const [linkStatus, setLinkStatus] = useState<LinkStatus>(isRemote ? 'connecting' : 'offline')
+  const [initialFocus, setInitialFocus] = useState<string | null>(null)
+  const mounted = useRef(true)
 
   useEffect(() => {
-    saveState(state)
-  }, [state])
+    mounted.current = true
+    return () => {
+      mounted.current = false
+    }
+  }, [])
 
-  // supernova decay — check every minute
+  /** Runs a backend call, pushing its result into state and surfacing failures. */
+  const run = useCallback(async (fn: () => Promise<GalaxyState>): Promise<boolean> => {
+    setBusy(true)
+    try {
+      const next = await fn()
+      if (mounted.current) {
+        dispatch({ type: 'hydrate', state: next })
+        setLastError(null)
+        if (isRemote) setLinkStatus('online')
+      }
+      return true
+    } catch (e) {
+      if (mounted.current) {
+        setLastError(message(e))
+        if (isRemote) setLinkStatus('error')
+      }
+      return false
+    } finally {
+      if (mounted.current) setBusy(false)
+    }
+  }, [])
+
+  // initial load — `ready` flips once and stays, so the splash never unmounts the
+  // auth form mid-request (which would wipe a failed sign-in's error message)
   useEffect(() => {
-    const t = setInterval(() => dispatch({ type: 'novaExpire' }), 60000)
+    void run(() => backend.init()).finally(() => {
+      if (mounted.current) setReady(true)
+    })
+  }, [run])
+
+  // supernova decay & fresh signals — re-read periodically from the source
+  useEffect(() => {
+    const t = setInterval(() => {
+      void backend.refresh().then((next) => {
+        if (mounted.current) dispatch({ type: 'hydrate', state: next })
+      })
+    }, 60000)
     return () => clearInterval(t)
   }, [])
 
@@ -206,149 +147,94 @@ export function GalaxyProvider({ children }: { children: React.ReactNode }) {
     [state.posts],
   )
 
-  const login = useCallback(
-    (email: string, password: string): string | null => {
-      const mail = normalizeEmail(email)
-      if (!isValidEmail(mail)) return 'enter a valid email address'
-      const user = Object.values(state.users).find((u) => !u.mock && u.email === mail)
-      if (!user || !user.passwordHash) return 'no planet orbits this email yet'
-      const salt = user.id
-      if (!verifyPassword(password, salt, user.passwordHash)) return 'wrong password — try again'
-      dispatch({ type: 'login', user })
+  const login = useCallback(async (email: string, password: string): Promise<string | null> => {
+    setBusy(true)
+    try {
+      const next = await backend.signIn(email, password)
+      dispatch({ type: 'hydrate', state: next })
+      if (isRemote) setLinkStatus('online')
       sfx.launch()
       return null
-    },
-    [state.users],
-  )
+    } catch (e) {
+      return message(e)
+    } finally {
+      setBusy(false)
+    }
+  }, [])
 
   const signUp = useCallback(
-    (email: string, password: string, name: string, planetVariant = 0): string | null => {
-      const mail = normalizeEmail(email)
-      if (!isValidEmail(mail)) return 'enter a valid email address'
-      if (!isValidPassword(password)) return `password needs at least ${8} characters`
-      if (Object.values(state.users).some((u) => !u.mock && u.email === mail)) {
-        return 'this email already has a planet — sign in instead'
+    async (email: string, password: string, name: string, planetVariant = 0): Promise<string | null> => {
+      setBusy(true)
+      try {
+        const next = await backend.signUp(email, password, name, planetVariant)
+        dispatch({ type: 'hydrate', state: next })
+        if (isRemote) setLinkStatus('online')
+        sfx.launch()
+        return null
+      } catch (e) {
+        return message(e)
+      } finally {
+        setBusy(false)
       }
-      const label = name.trim() || mail.split('@')[0]
-      const taken = new Set(Object.values(state.users).map((u) => u.handle.toLowerCase()))
-      const handle = handleFromIdentity(label, mail, taken)
-      const base = makeUser(handle, label, planetVariant)
-      // the salt is the account id, so the hash is derived from the final user
-      const user: User = { ...base, email: mail, passwordHash: hashPassword(password, base.id) }
-      dispatch({ type: 'login', user })
-      sfx.launch()
-      return null
     },
-    [state.users],
+    [],
   )
 
-  const loginAs = useCallback(
-    (userId: string) => {
-      const user = state.users[userId]
-      if (!user) return
-      dispatch({ type: 'login', user })
+  const loginAs = useCallback(async (userId: string): Promise<string | null> => {
+    setBusy(true)
+    try {
+      const next = await backend.signInVisitor(userId)
+      dispatch({ type: 'hydrate', state: next })
+      if (isRemote) setLinkStatus('online')
+      // Offline you literally become the demo planet; online you are a visitor
+      // with your own world and the camera flies to the one you tapped.
+      if (isRemote) setInitialFocus(userId)
       sfx.launch()
-    },
-    [state.users],
-  )
-
-  const linkEmail = useCallback(
-    (email: string, password: string): string | null => {
-      const id = state.currentUserId
-      if (!id) return 'you are not signed in'
-      const mail = normalizeEmail(email)
-      if (!isValidEmail(mail)) return 'enter a valid email address'
-      if (!isValidPassword(password)) return `password needs at least ${8} characters`
-      if (Object.values(state.users).some((u) => u.id !== id && !u.mock && u.email === mail)) {
-        return 'another planet already uses this email'
-      }
-      dispatch({ type: 'linkEmail', userId: id, email: mail, passwordHash: hashPassword(password, id) })
       return null
-    },
-    [state.currentUserId, state.users],
-  )
+    } catch (e) {
+      return message(e)
+    } finally {
+      setBusy(false)
+    }
+  }, [])
+
+  const linkEmail = useCallback(async (email: string, password: string): Promise<string | null> => {
+    setBusy(true)
+    try {
+      const next = await backend.linkEmail(email, password)
+      dispatch({ type: 'hydrate', state: next })
+      return null
+    } catch (e) {
+      return message(e)
+    } finally {
+      setBusy(false)
+    }
+  }, [])
 
   const logout = useCallback(() => {
     sfx.click()
-    dispatch({ type: 'logout' })
+    void backend.signOut().catch(() => undefined)
+    dispatch({ type: 'hydrate', state: emptyGalaxy() })
   }, [])
 
-  const updateProfile = useCallback((patch: Partial<User>) => dispatch({ type: 'updateUser', patch }), [])
+  const updateProfile = useCallback((patch: Partial<User>) => void run(() => backend.updateProfile(patch)), [run])
 
   const createPost = useCallback(
-    (text: string, image?: string) => {
-      if (!state.currentUserId) return null
-      const body = text.trim()
-      if (!body && !image) return null
-      const post: Post = {
-        id: uid(),
-        authorId: state.currentUserId,
-        text: body,
-        image: image?.trim() || undefined,
-        createdAt: Date.now(),
-        likes: [],
-        signals: [],
-        supernovaAt: null,
-        kind: image ? 'image' : 'text',
-      }
-      dispatch({ type: 'addPost', post })
-      sfx.launch()
-      return post
-    },
-    [state.currentUserId],
+    (text: string, image?: string) => void run(() => backend.createPost(text, image)),
+    [run],
   )
-
-  const deletePost = useCallback((id: string) => {
-    sfx.click()
-    dispatch({ type: 'deletePost', id })
-  }, [])
-
-  const toggleLike = useCallback(
-    (postId: string) => {
-      if (!state.currentUserId) return
-      const post = state.posts[postId]
-      const already = post?.likes.includes(state.currentUserId)
-      const willNova = !already && post && post.likes.length + 1 >= SUPERNOVA_THRESHOLD && !post.supernovaAt
-      if (willNova) sfx.supernova()
-      else if (already) sfx.click()
-      else sfx.like()
-      dispatch({ type: 'toggleLike', postId, userId: state.currentUserId })
-    },
-    [state.currentUserId, state.posts],
-  )
-
-  const addSignal = useCallback(
-    (postId: string, text: string) => {
-      if (!state.currentUserId || !text.trim()) return
-      dispatch({ type: 'addSignal', postId, signal: { id: uid(), authorId: state.currentUserId, text: text.trim() } })
-      sfx.signal()
-    },
-    [state.currentUserId],
-  )
+  const deletePost = useCallback((id: string) => void run(() => backend.deletePost(id)), [run])
+  const toggleLike = useCallback((postId: string) => void run(() => backend.toggleLike(postId)), [run])
+  const addSignal = useCallback((postId: string, text: string) => void run(() => backend.addSignal(postId, text)), [run])
+  const toggleFollow = useCallback((userId: string) => void run(() => backend.toggleFollow(userId)), [run])
+  const toggleSave = useCallback((postId: string) => void run(() => backend.toggleSave(postId)), [run])
 
   const resetGalaxy = useCallback(() => {
-    const fresh = buildSeedGalaxy()
-    dispatch({ type: 'hydrate', state: fresh })
-  }, [])
+    void run(() => backend.reset())
+  }, [run])
 
-  const toggleFollow = useCallback(
-    (userId: string) => {
-      if (!state.currentUserId) return
-      if (state.users[state.currentUserId]?.following?.includes(userId)) sfx.click()
-      else sfx.signal()
-      dispatch({ type: 'toggleFollow', userId })
-    },
-    [state.currentUserId, state.users],
-  )
-
-  const toggleSave = useCallback(
-    (postId: string) => {
-      if (!state.currentUserId) return
-      sfx.click()
-      dispatch({ type: 'toggleSave', postId })
-    },
-    [state.currentUserId],
-  )
+  const clearLastError = useCallback(() => setLastError(null), [])
+  const clearInitialFocus = useCallback(() => setInitialFocus(null), [])
 
   const currentUser = state.currentUserId ? state.users[state.currentUserId] ?? null : null
 
@@ -387,6 +273,14 @@ export function GalaxyProvider({ children }: { children: React.ReactNode }) {
     postById,
     userById,
     supernovas,
+    mode: backend.name,
+    linkStatus,
+    busy,
+    ready,
+    lastError,
+    clearLastError,
+    initialFocus,
+    clearInitialFocus,
     login,
     signUp,
     loginAs,

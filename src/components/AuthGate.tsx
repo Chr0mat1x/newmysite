@@ -12,7 +12,7 @@ const VARIANTS = [0, 1, 2, 3, 4, 5, 6, 7]
 type Mode = 'signup' | 'signin' | 'explore'
 
 export function AuthGate() {
-  const { login, signUp, loginAs, users } = useGalaxy()
+  const { login, signUp, loginAs, users, postsOf, busy } = useGalaxy()
   const [mode, setMode] = useState<Mode>('signup')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -30,12 +30,23 @@ export function AuthGate() {
     setError(null)
   }
 
-  const submit = () => {
-    const err = mode === 'signin' ? login(email, password) : signUp(email, password, name, variant)
+  const submit = async () => {
+    const err =
+      mode === 'signin'
+        ? await login(email, password)
+        : await signUp(email, password, name, variant)
     setError(err)
   }
 
-  const explore = [...users].sort((a, b) => Number(!!a.mock) - Number(!!b.mock)).slice(0, 18)
+  // Seeded demo planets first, then the liveliest ones — so the visitor list is
+  // never drowned out by empty accounts created during testing.
+  const explore = [...users]
+    .sort((a, b) => {
+      if (!!a.mock !== !!b.mock) return Number(!!b.mock) - Number(!!a.mock)
+      const byPosts = postsOf(b.id).length - postsOf(a.id).length
+      return byPosts || a.handle.localeCompare(b.handle)
+    })
+    .slice(0, 18)
 
   return (
     <div className="relative z-20 flex min-h-[100dvh] items-center justify-center px-4 py-6 pb-safe pt-safe sm:py-10">
@@ -78,10 +89,11 @@ export function AuthGate() {
                     key={u.id}
                     onClick={() => {
                       sfx.click()
-                      loginAs(u.id)
+                      void loginAs(u.id)
                     }}
+                    disabled={busy}
                     onMouseEnter={() => sfx.hover()}
-                    className="tap flex w-full items-center gap-3 rounded-xl border border-white/5 bg-white/[0.03] p-2 text-left transition-all hover:border-pulse/40 hover:bg-white/[0.07] active:bg-white/[0.07]"
+                    className="tap flex w-full items-center gap-3 rounded-xl border border-white/5 bg-white/[0.03] p-2 text-left transition-all hover:border-pulse/40 hover:bg-white/[0.07] active:bg-white/[0.07] disabled:opacity-50"
                   >
                     <PlanetBadge seed={u.seed} size={32} />
                     <div className="min-w-0">
@@ -194,11 +206,15 @@ export function AuthGate() {
               )}
 
               <button
-                onClick={submit}
-                disabled={!email.trim() || !password}
+                onClick={() => void submit()}
+                disabled={!email.trim() || !password || busy}
                 className="tap mt-1 w-full rounded-xl bg-gradient-to-r from-pulse to-glow py-3 font-display text-sm font-semibold tracking-wider text-black transition-all hover:brightness-110 active:scale-[0.98] disabled:opacity-30"
               >
-                {mode === 'signup' ? 'LAUNCH INTO ORBIT' : 'ENTER ORBIT'}
+                {busy
+                  ? 'CONTACTING ORBIT…'
+                  : mode === 'signup'
+                    ? 'LAUNCH INTO ORBIT'
+                    : 'ENTER ORBIT'}
               </button>
               <button
                 onClick={() => switchMode('explore')}

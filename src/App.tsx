@@ -20,7 +20,7 @@ import { useIsMobile } from './lib/useMedia'
 import { isMuted, setMuted, startAmbient, resumeAudio, sfx } from './lib/audio'
 
 function Orbit() {
-  const { currentUser, users, state, logout, resetGalaxy, supernovas, userById, following, savedPosts, transmissions } =
+  const { currentUser, users, state, logout, resetGalaxy, supernovas, userById, following, savedPosts, transmissions, mode, linkStatus, busy, lastError, clearLastError, initialFocus, clearInitialFocus } =
     useGalaxy()
   const handleRef = useRef<GalaxyHandle>(null)
   const [selected, setSelected] = useState<string | null>(null)
@@ -118,6 +118,13 @@ function Orbit() {
     novaCount.current = supernovas.length
   }, [supernovas, userById, pushToast])
 
+  // surface backend failures as a toast, then clear so it fires once
+  useEffect(() => {
+    if (!lastError) return
+    pushToast({ kind: 'nova', title: 'TRANSMISSION FAILED', body: lastError })
+    clearLastError()
+  }, [lastError, clearLastError, pushToast])
+
   // keyboard flight
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -195,6 +202,19 @@ function Orbit() {
     setConsoleTab(tab)
     setConsoleOpen(true)
   }, [])
+
+  // A visitor picked a demo planet — fly them to it once the galaxy is loaded.
+  // The focus flag is cleared *inside* the timeout: clearing it up front would
+  // change this effect's deps and its cleanup would cancel the flight.
+  useEffect(() => {
+    if (!initialFocus) return
+    const target = initialFocus
+    const t = setTimeout(() => {
+      if (userById(target)) visit(target)
+      clearInitialFocus()
+    }, 500)
+    return () => clearTimeout(t)
+  }, [initialFocus, clearInitialFocus, userById, visit])
 
   const flyRandom = useCallback(() => {
     sfx.launch()
@@ -489,6 +509,34 @@ function Orbit() {
         <span>drag · scroll · click · WASD</span>
       </div>
 
+      {/* ---------- link indicator: are we in the shared galaxy or offline? ---------- */}
+      <div className="pointer-events-none absolute left-3 top-20 z-10 hidden font-mono text-[9px] uppercase tracking-[0.16em] sm:block sm:left-5 sm:top-24">
+        <span
+          className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-1 ${
+            mode === 'supabase'
+              ? linkStatus === 'online'
+                ? 'border-white/15 text-white/45'
+                : linkStatus === 'error'
+                  ? 'border-nova/50 text-nova/80'
+                  : 'border-white/10 text-white/35'
+              : 'border-white/10 text-white/30'
+          }`}
+        >
+          <span
+            className={`h-1.5 w-1.5 rounded-full ${
+              busy ? 'animate-pulse bg-white/70' : mode === 'supabase' && linkStatus === 'online' ? 'bg-white' : 'bg-white/35'
+            }`}
+          />
+          {mode === 'supabase'
+            ? linkStatus === 'online'
+              ? 'shared galaxy'
+              : linkStatus === 'error'
+                ? 'link unstable'
+                : 'linking…'
+            : 'offline demo'}
+        </span>
+      </div>
+
       {/* ---------- panels ---------- */}
       <OrbitView userId={selected} onClose={closeIfSettled} onCompose={() => setComposerOpen(true)} />
       <Composer open={composerOpen} onClose={() => setComposerOpen(false)} />
@@ -558,7 +606,7 @@ function Orbit() {
 }
 
 function Shell() {
-  const { currentUser } = useGalaxy()
+  const { currentUser, mode, ready } = useGalaxy()
   const [ambientReady, setAmbientReady] = useState(false)
 
   useEffect(() => {
@@ -570,6 +618,29 @@ function Shell() {
     window.addEventListener('pointerdown', go, { once: true })
     return () => window.removeEventListener('pointerdown', go)
   }, [])
+
+  // first paint while the galaxy is still loading from Supabase
+  if (!ready && !currentUser) {
+    return (
+      <div className="relative flex min-h-[100dvh] flex-col items-center justify-center gap-4 bg-void text-white">
+        <div
+          className="pointer-events-none absolute inset-0"
+          style={{
+            background:
+              'radial-gradient(ellipse at 50% 50%, rgba(255,255,255,.07), transparent 60%)',
+          }}
+        />
+        <motion.div
+          animate={{ rotate: 360 }}
+          transition={{ duration: 3.2, repeat: Infinity, ease: 'linear' }}
+          className="h-12 w-12 rounded-full border border-white/15 border-t-white/80"
+        />
+        <p className="font-mono text-[10px] uppercase tracking-[0.28em] text-white/40">
+          {mode === 'supabase' ? 'linking to the shared galaxy' : 'forming the galaxy'}
+        </p>
+      </div>
+    )
+  }
 
   return (
     <div className="relative min-h-[100dvh] bg-void">

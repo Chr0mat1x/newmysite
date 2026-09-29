@@ -47,5 +47,45 @@ export interface GalaxyState {
   currentUserId: string | null
 }
 
+// ---------------------------------------------------------------------------
+// remote shapes — snake_case, exactly as Postgres returns them
+// ---------------------------------------------------------------------------
+
+export interface PlanetRow {
+  id: string
+  handle: string
+  name: string
+  bio: string
+  seed: number
+  following: string[] | null
+  saved: string[] | null
+  is_demo: boolean
+  created_at: string
+}
+
+export interface SatelliteRow {
+  id: string
+  author: string
+  body: string
+  image: string | null
+  kind: 'text' | 'image'
+  supernova_at: string | null
+  created_at: string
+}
+
+export interface SignalRow {
+  id: string
+  satellite: string
+  author: string
+  body: string
+  phase: number
+  created_at: string
+}
+
+export interface StarRow {
+  satellite: string
+  planet: string
+}
+
 export const SUPERNOVA_THRESHOLD = 10
 export const SUPERNOVA_TTL = 24 * 60 * 60 * 1000

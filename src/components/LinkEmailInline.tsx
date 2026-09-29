@@ -35,8 +35,8 @@ export function LinkEmailInline({ compact = false }: { compact?: boolean }) {
     )
   }
 
-  const submit = () => {
-    const err = linkEmail(email, password)
+  const submit = async () => {
+    const err = await linkEmail(email, password)
     if (err) setError(err)
     else {
       setError(null)
@@ -69,7 +69,7 @@ export function LinkEmailInline({ compact = false }: { compact?: boolean }) {
       {done && <p className="text-[11px] text-white/60">linked — you can sign in with it now</p>}
       <div className="flex gap-2">
         <button
-          onClick={submit}
+          onClick={() => void submit()}
           disabled={!email.trim() || !password}
           className="tap flex-1 rounded-lg border border-white/20 bg-white/[0.06] py-2 font-mono text-[10px] uppercase tracking-[0.18em] text-white disabled:opacity-30"
         >

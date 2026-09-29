@@ -70,9 +70,45 @@ The palette is intentionally black-and-white. Post imagery is rendered through a
 filter and the procedural engine emits only achromatic values (`hsla(0,0%,L%,A)`), so the whole
 frame stays neutral except for sub-pixel antialiasing.
 
-All state lives in `localStorage` behind a single reducer, so the app is a complete product
-without a backend. Swapping in Supabase means replacing `src/lib/storage.ts` and the load/save
-calls in `src/state/store.tsx` — nothing else touches persistence.
+All state sits behind a single `Backend` interface (`src/lib/backends/`). Two
+implementations ship in the repo and the app picks one at build time:
+
+- **`LocalBackend`** — `localStorage`, a complete single-browser product with no
+  server. This is the default when no Supabase env vars are set.
+- **`SupabaseBackend`** — real auth and a shared Postgres galaxy with RLS,
+  triggers and a seeded demo fleet. Used when `VITE_SUPABASE_URL` and
+  `VITE_SUPABASE_ANON_KEY` are present.
+
+The React tree never talks to a database directly; it calls the store, and the
+store calls whichever backend is live.
+
+---
+
+## Running
+
+```bash
+npm install
+npm run dev          # http://localhost:12000 — offline demo, no setup needed
+```
+
+To run against a real backend you need Supabase. The quickest path is the local
+stack (requires Docker):
+
+```bash
+npx supabase start   # boots Postgres, Auth, REST and Studio in containers
+cp .env.example .env.local
+# paste the API URL + anon key printed by `supabase start`
+npm run dev
+```
+
+The migration in `supabase/migrations/` creates the schema, the RLS policies,
+the signup trigger (every auth user gets a planet) and `seed_demo_galaxy()` —
+the same demo fleet the offline build ships with.
+
+For production, create a Supabase project, run the migration against it, then
+set the two env vars in your host (Vercel/Netlify). Enable **anonymous sign-ins**
+in Auth settings: ORBIT uses them for the "explore a demo planet" visitor path,
+where a visitor gets a throwaway planet they can later attach an email to.
 
 ---
 
@@ -86,7 +122,7 @@ src/
     GalaxyCanvas.ts   the engine: camera, flight easing, draw passes, hit-testing
   components/
     GalaxyCanvas.tsx  React driver around the engine (pointer, wheel, stats)
-    AuthGate.tsx      handle + display name entry
+    AuthGate.tsx      sign up / sign in / explore demo planets
     OrbitView.tsx     a planet's orbit: posts, stars, signals
     PostCard.tsx      one satellite
     Composer.tsx      launch a new post (text + image URL)
@@ -97,19 +133,49 @@ src/
   lib/
     procgen.ts        hashing + seeded RNG + planet generation
     seed.ts           demo galaxy (users, posts, signals, supernovae)
-    storage.ts        localStorage load/save
+    storage.ts        localStorage load/save (used by the offline backend)
     audio.ts          ambient drone + interaction pings (WebAudio)
     math.ts           lerp / clamp / easing
-  state/store.tsx     single reducer + context + persistence
+    supabase.ts       client + `isRemote` switch + link status type
+    mappers.ts        DB rows <-> domain types
+    backends/
+      types.ts        the Backend interface
+      local.ts        offline implementation (localStorage)
+      supabase.ts     remote implementation (Auth + Postgres + RLS)
+  state/
+    reducer.ts        pure state transitions, shared by the store
+    store.tsx         context, async actions, derived selectors
   App.tsx             HUD and screen composition
+supabase/
+  config.toml         local stack config (anonymous sign-ins enabled)
+  migrations/         schema, RLS, triggers, demo seeder
 ```
+
+---
+
+## Backend model
+
+Five tables: `planets`, `satellites`, `signals`, `stars` (likes) and nothing
+else — follows and bookmarks are string arrays on the planet row.
+
+- **Supernovae are a database concern.** A trigger on `stars` flips
+  `satellites.supernova_at` when the 10th star lands, so the threshold cannot be
+  spoofed by a modified client. The UI just reads the timestamp and fades the
+  nova after 24 hours.
+- **RLS everywhere.** Reads are public; writes are scoped to `auth.uid()`.
+  A planet can only edit its own row, and a star can only be inserted with
+  `planet = auth.uid()`.
+- **Visitors are anonymous auth users.** The signup trigger gives them a real
+  planet (from the metadata passed at sign-in), so they can post and react
+  without an account and can upgrade later.
 
 ---
 
 ## Notes for a real deployment
 
-- Persistence is per-browser. Two people on two machines will not see each other yet.
 - Audio starts muted and unmutes on the first gesture (browser autoplay policy).
-- Recommended path to a live beta: keep this UI, add Supabase auth + tables
-  (`users`, `posts`, `likes`, `signals`), and replace the reducer's save/load layer.
-  Deploy the frontend to Vercel or Netlify.
+- The store re-reads the affected tables after each write rather than patching
+  its cache. Fine for a demo-sized galaxy; revisit if ORBIT ever holds thousands
+  of satellites.
+- Deploy the frontend to Vercel or Netlify and run the migration against a
+  hosted Supabase project. Nothing else is required.
