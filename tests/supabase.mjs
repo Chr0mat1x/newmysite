@@ -8,7 +8,7 @@
 // It talks to Supabase directly for assertions so it verifies rows actually
 // landed, not just that the UI looked happy.
 
-import { open, reporter, stamp, leaveOrbit, dismissOnboarding, openPalette, signUp, signIn, inOrbit } from './harness.mjs'
+import { open, reporter, stamp, leaveOrbit, dismissOnboarding, openPalette, signUp, signUpAndConfirm, signIn, inOrbit } from './harness.mjs'
 
 const SUPABASE = process.env.SUPABASE_URL || 'http://localhost:12000/sb'
 const ANON = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY
@@ -32,9 +32,9 @@ const rest = async (path) => {
 const before = await rest('planets?select=id&handle=eq.nova')
 ok('seeded demo planets are readable', Array.isArray(before) && before.length === 1)
 
-await signUp(page, wait, { email: MAIL, password: PW, name: NAME })
+await signUpAndConfirm(page, wait, { email: MAIL, password: PW, name: NAME })
 await dismissOnboarding(page, wait)
-ok('signup lands in the galaxy', await inOrbit(page))
+ok('signup lands in the galaxy after confirming', await inOrbit(page))
 ok('new planet has no satellites yet', (await page.locator('text=0 satellites').first().isVisible().catch(() => false)))
 
 const mine = await rest(`planets?select=id&name=eq.${encodeURIComponent(NAME)}`)
@@ -107,17 +107,18 @@ ok('wrong password is rejected', await page.locator('text=wrong email or passwor
 
 await page.locator('button:has-text("create planet")').first().click()
 await wait(500)
-await page.fill('input[autocomplete="nickname"]', NAME)
-await page.fill('input[type="email"]', MAIL)
-await page.fill('input[type="password"]', PW)
-await page.locator('button:has-text("launch into orbit")').click()
-await wait(3000)
+await signUp(page, wait, { email: MAIL, password: PW, name: NAME })
 ok('duplicate email is refused', await page.locator('text=already').first().isVisible().catch(() => false))
 
 // --- visitor path ----------------------------------------------------------
 await page.locator('button:has-text("or explore a demo planet")').click()
 await wait(1200)
 ok('explore list offers demo planets', (await page.locator('button:has-text("Nova")').count()) >= 1)
+
+// anonymous sign-in must survive email confirmations being switched on
+await page.locator('button:has-text("Nova")').first().click()
+await wait(3500)
+ok('visitor enters the galaxy without confirming anything', await inOrbit(page))
 
 await browser.close()
 ok('no unexpected console errors', contextErrors.length === 0, contextErrors.join(' | '))

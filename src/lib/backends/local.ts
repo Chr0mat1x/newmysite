@@ -4,7 +4,7 @@ import { loadState, saveState, uid } from '../storage'
 import { buildSeedGalaxy, makeUser } from '../seed'
 import { hashPassword, handleFromIdentity, isValidEmail, isValidPassword, normalizeEmail, verifyPassword } from '../auth'
 import { reducer, type Action } from '../../state/reducer'
-import type { Backend } from './types'
+import type { Backend, SignUpResult } from './types'
 
 /**
  * The original single-browser galaxy. Keeps working when Supabase is not
@@ -34,7 +34,13 @@ export class LocalBackend implements Backend {
     return this.state
   }
 
-  async signUp(email: string, password: string, name: string, planetVariant: number) {
+  async signUp(
+    email: string,
+    password: string,
+    name: string,
+    planetVariant: number,
+    preferredHandle?: string,
+  ): Promise<SignUpResult> {
     const mail = normalizeEmail(email)
     if (!isValidEmail(mail)) throw new Error('enter a valid email address')
     if (!isValidPassword(password)) throw new Error('password needs at least 8 characters')
@@ -43,10 +49,23 @@ export class LocalBackend implements Backend {
     }
     const label = name.trim() || mail.split('@')[0]
     const taken = new Set(Object.values(this.state.users).map((u) => u.handle.toLowerCase()))
-    const handle = handleFromIdentity(label, mail, taken)
+    const requested = preferredHandle?.trim()
+    if (requested) {
+      if (!/^[a-z0-9_]{3,20}$/.test(requested)) {
+        throw new Error('handles are 3-20 characters: letters, numbers and _')
+      }
+      if (taken.has(requested)) throw new Error(`@${requested} is already orbiting — pick another`)
+    }
+    const handle = requested || handleFromIdentity(label, mail, taken)
     const base = makeUser(handle, label, planetVariant)
     const user: User = { ...base, email: mail, passwordHash: hashPassword(password, base.id) }
-    return this.apply({ type: 'login', user })
+    // the offline galaxy has no mail to confirm, so a signup is always active
+    return { status: 'active', state: this.apply({ type: 'login', user }) }
+  }
+
+  /** No mail server offline: nothing to re-send, and no way to have a pending account. */
+  async resendConfirmation(): Promise<string | null> {
+    return 'this build is offline — there is no confirmation mail to send'
   }
 
   async signIn(email: string, password: string) {

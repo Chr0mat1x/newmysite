@@ -11,13 +11,43 @@ import { isRemote, recovery } from '../lib/supabase'
 /** How many procedural worlds the launch screen offers to pick from. */
 const VARIANTS = [0, 1, 2, 3, 4, 5, 6, 7]
 
-type Mode = 'signup' | 'signin' | 'explore' | 'reset' | 'sent' | 'recover'
+type Mode = 'signup' | 'signin' | 'explore' | 'reset' | 'sent' | 'recover' | 'confirm'
+
+/** Copy for the password-strength meter, weakest first. */
+const STRENGTH = ['too short', 'workable', 'solid', 'fortress']
+
+/** A rough 0-3 score: length plus the variety of characters in use. */
+function strengthOf(pw: string): number {
+  if (pw.length < PASSWORD_MIN) return 0
+  let score = 1
+  const kinds = [/[a-z]/, /[A-Z]/, /\d/, /[^A-Za-z0-9]/].filter((re) => re.test(pw)).length
+  if (kinds >= 2 && pw.length >= 12) score = 2
+  if (kinds >= 3 && pw.length >= 16) score = 3
+  return score
+}
 
 export function AuthGate() {
-  const { login, signUp, loginAs, resetPassword, setPassword: savePassword, refresh, users, postsOf, busy, recovering } = useGalaxy()
+  const {
+    login,
+    signUp,
+    loginAs,
+    resetPassword,
+    setPassword: savePassword,
+    resendConfirmation,
+    refresh,
+    users,
+    postsOf,
+    busy,
+    recovering,
+    pendingConfirmation,
+    clearPendingConfirmation,
+  } = useGalaxy()
   const [mode, setMode] = useState<Mode>(() => (recovery.pending ? 'recover' : 'signup'))
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [confirm, setConfirm] = useState('')
+  const [handle, setHandle] = useState('')
+  const [accepted, setAccepted] = useState(false)
   const [name, setName] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
@@ -29,6 +59,11 @@ export function AuthGate() {
     if (recovering) setMode('recover')
   }, [recovering])
 
+  // an unverified sign-in (or a fresh signup) parks here until the link is opened
+  useEffect(() => {
+    if (pendingConfirmation) setMode('confirm')
+  }, [pendingConfirmation])
+
   const seed = useMemo(
     () => planetSeed(name || email.split('@')[0] || 'orbit', name || 'traveler', variant),
     [email, name, variant],
@@ -38,7 +73,16 @@ export function AuthGate() {
     setMode(next)
     setError(null)
     setNotice(null)
+    if (next !== 'confirm') clearPendingConfirmation()
   }
+
+  const signupReady =
+    !!name.trim() &&
+    !!email.trim() &&
+    !!handle.trim() &&
+    password.length >= PASSWORD_MIN &&
+    password === confirm &&
+    accepted
 
   const submit = async () => {
     let err: string | null = null
@@ -63,7 +107,22 @@ export function AuthGate() {
       setError(err)
       return
     }
-    err = mode === 'signin' ? await login(email, password) : await signUp(email, password, name, variant)
+    if (mode === 'confirm') {
+      err = await resendConfirmation(pendingConfirmation ?? email)
+      setError(err)
+      if (!err) setNotice(`a fresh confirmation link is on its way to ${pendingConfirmation ?? email.trim().toLowerCase()}`)
+      return
+    }
+    if (mode === 'signup') {
+      if (password !== confirm) {
+        setError('the two passwords do not match')
+        return
+      }
+      err = await signUp(email, password, name, variant, handle.trim().toLowerCase())
+      setError(err)
+      return
+    }
+    err = await login(email, password)
     setError(err)
   }
 
@@ -150,7 +209,44 @@ export function AuthGate() {
               exit={{ opacity: 0, x: -12 }}
               className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain"
             >
-              {mode === 'recover' ? (
+              {mode === 'confirm' ? (
+                <div className="space-y-3">
+                  <p role="status" className="rounded-xl border border-white/15 bg-white/[0.05] px-3 py-2 text-[12px] text-white/80">
+                    confirm your address to launch
+                  </p>
+                  <p className="text-[12px] leading-relaxed text-white/50">
+                    We sent a link to <span className="text-white/80">{pendingConfirmation ?? email}</span>. Open it to
+                    activate your planet — until then nobody can sign in with this address.
+                  </p>
+                  <p className="text-[12px] leading-relaxed text-white/45">
+                    {isRemote
+                      ? 'No mail server is configured in this demo, so nothing reaches a real inbox. The link appears in the mailbox below, usually within a few seconds.'
+                      : 'This build is fully offline — accounts live only in this browser, so there is no email to send.'}
+                  </p>
+                  <Mailbox open defaultOpen onlyTo={pendingConfirmation ?? email} />
+                  {notice && (
+                    <p className="text-[11px] leading-relaxed text-white/50">{notice}</p>
+                  )}
+                  {error && (
+                    <p role="alert" className="rounded-xl border border-white/15 bg-white/[0.05] px-3 py-2 text-[12px] text-white/70">
+                      {error}
+                    </p>
+                  )}
+                  <button
+                    onClick={() => void submit()}
+                    disabled={busy}
+                    className="tap w-full rounded-xl border border-white/15 py-2.5 font-display text-[13px] font-semibold tracking-wider text-white/80 transition-all hover:border-white/40 hover:text-white active:scale-[0.98] disabled:opacity-30"
+                  >
+                    {busy ? 'SENDING…' : 'RESEND CONFIRMATION LINK'}
+                  </button>
+                  <button
+                    onClick={() => switchMode('signin')}
+                    className="tap w-full py-2 font-mono text-[11px] uppercase tracking-[0.2em] text-white/40 transition-colors hover:text-white/80 active:text-white/80"
+                  >
+                    ← back to sign in
+                  </button>
+                </div>
+              ) : mode === 'recover' ? (
                 <div className="space-y-3">
                   <p className="text-[12px] leading-relaxed text-white/50">
                     Recovery link accepted. Choose a new key for your planet.
@@ -228,6 +324,28 @@ export function AuthGate() {
                 </Field>
               )}
 
+              {mode === 'signup' && (
+                <Field label="handle">
+                  <div className="relative">
+                    <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 font-mono text-[13px] text-white/35">
+                      @
+                    </span>
+                    <input
+                      value={handle}
+                      onChange={(e) => setHandle(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '').slice(0, 20))}
+                      onKeyDown={(e) => e.key === 'Enter' && submit()}
+                      placeholder="nova"
+                      autoComplete="username"
+                      aria-label="handle"
+                      className="input pl-7"
+                    />
+                  </div>
+                  <span className="mt-1 block font-mono text-[10px] text-white/30">
+                    your address in the galaxy — 3-20 letters, numbers or _
+                  </span>
+                </Field>
+              )}
+
               <Field label="email">
                 <input
                   autoFocus={mode === 'signin' || mode === 'reset'}
@@ -253,6 +371,41 @@ export function AuthGate() {
                     autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
                     className="input"
                   />
+                  {mode === 'signup' && password.length > 0 && (
+                    <span className="mt-1.5 flex items-center gap-2">
+                      <span className="flex gap-1">
+                        {[0, 1, 2, 3].map((i) => (
+                          <span
+                            key={i}
+                            className={`h-1 w-8 rounded-full transition-colors ${
+                              i <= strengthOf(password) ? 'bg-white/70' : 'bg-white/10'
+                            }`}
+                          />
+                        ))}
+                      </span>
+                      <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-white/40">
+                        {STRENGTH[strengthOf(password)]}
+                      </span>
+                    </span>
+                  )}
+                </Field>
+              )}
+
+              {mode === 'signup' && (
+                <Field label="confirm password">
+                  <input
+                    type="password"
+                    value={confirm}
+                    onChange={(e) => setConfirm(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && submit()}
+                    placeholder="repeat it"
+                    autoComplete="new-password"
+                    aria-label="confirm password"
+                    className="input"
+                  />
+                  {confirm.length > 0 && confirm !== password && (
+                    <span className="mt-1 block font-mono text-[10px] text-white/45">the two do not match yet</span>
+                  )}
                 </Field>
               )}
 
@@ -280,6 +433,22 @@ export function AuthGate() {
                 </Field>
               )}
 
+              {mode === 'signup' && (
+                <label className="flex cursor-pointer items-start gap-2 pt-1">
+                  <input
+                    type="checkbox"
+                    checked={accepted}
+                    onChange={(e) => setAccepted(e.target.checked)}
+                    className="mt-0.5 h-4 w-4 shrink-0 accent-white"
+                    aria-label="accept the rules"
+                  />
+                  <span className="text-[11px] leading-relaxed text-white/45">
+                    I will keep this a decent place to be: no harassment, no spam, no pretending to be someone else.
+                    One planet per person.
+                  </span>
+                </label>
+              )}
+
               {error && (
                 <p role="alert" className="rounded-xl border border-white/15 bg-white/[0.05] px-3 py-2 text-[12px] text-white/70">
                   {error}
@@ -288,7 +457,7 @@ export function AuthGate() {
 
               <button
                 onClick={() => void submit()}
-                disabled={!email.trim() || (mode !== 'reset' && !password) || busy}
+                disabled={mode === 'signup' ? !signupReady || busy : !email.trim() || (mode !== 'reset' && !password) || busy}
                 className="tap mt-1 w-full rounded-xl bg-gradient-to-r from-pulse to-glow py-3 font-display text-sm font-semibold tracking-wider text-black transition-all hover:brightness-110 active:scale-[0.98] disabled:opacity-30"
               >
                 {busy

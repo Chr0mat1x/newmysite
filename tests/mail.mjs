@@ -6,7 +6,7 @@
 // in-app mailbox, follow it, set a new key, and prove the old one is dead.
 // Needs the local stack's mail catcher reached through the `/mb` proxy.
 
-import { open, reporter, stamp, leaveOrbit, signUp, signIn, inOrbit } from './harness.mjs'
+import { open, reporter, stamp, leaveOrbit, signUp, confirmFromMailbox, signIn, inOrbit } from './harness.mjs'
 
 const { ok, errors, finish } = reporter('ORBIT · mail')
 const { browser, page, wait, contextErrors } = await open()
@@ -16,9 +16,23 @@ const oldPw = 'orbit pass 9'
 const newPw = 'brand new key 7'
 const name = `Recovery ${stamp()}`
 
-// --- a real account to recover ---------------------------------------------
+// --- signup sends a confirmation mail, and nothing works until it is opened ---
 await signUp(page, wait, { email: mail, password: oldPw, name })
-ok('account created', await inOrbit(page))
+ok('signup stops at the confirmation step', await page.locator('text=confirm your address to launch').isVisible().catch(() => false))
+ok('signup does not enter orbit yet', !(await inOrbit(page)))
+
+await page.locator('button:has-text("sign in")').first().click()
+await wait(500)
+await page.fill('input[type="email"]', mail)
+await page.fill('input[type="password"]', oldPw)
+await page.locator('button:has-text("enter orbit")').click()
+await wait(3000)
+ok('unconfirmed sign-in is refused', !(await inOrbit(page)))
+
+// the refusal should land back on the confirmation screen, with the mail ready
+await confirmFromMailbox(page, wait, mail)
+await wait(3500)
+ok('account created after confirming', await inOrbit(page))
 
 await leaveOrbit(page, wait)
 await page.locator('button:has-text("sign in")').first().click()

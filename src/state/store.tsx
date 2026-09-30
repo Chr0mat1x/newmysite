@@ -34,6 +34,10 @@ interface Ctx {
   ready: boolean
   /** a recovery link was opened and the user still has to pick a new key */
   recovering: boolean
+  /** address waiting on a signup confirmation mail, or null */
+  pendingConfirmation: string | null
+  /** clear the pending-confirmation state (after verifying or giving up) */
+  clearPendingConfirmation: () => void
   /** the most recent failure, already human-readable */
   lastError: string | null
   clearLastError: () => void
@@ -42,8 +46,20 @@ interface Ctx {
   clearInitialFocus: () => void
   /** Sign in with email + password. Returns an error message, or null on success. */
   login: (email: string, password: string) => Promise<string | null>
-  /** Create a new planet. Returns an error message, or null on success. */
-  signUp: (email: string, password: string, name: string, planetVariant?: number) => Promise<string | null>
+  /**
+   * Create a new planet. Returns an error message, or null on success — success
+   * meaning either a live session or a pending email confirmation, which the UI
+   * tells apart through `pendingConfirmation`.
+   */
+  signUp: (
+    email: string,
+    password: string,
+    name: string,
+    planetVariant?: number,
+    handle?: string,
+  ) => Promise<string | null>
+  /** Re-send the signup confirmation mail. Returns an error, or null. */
+  resendConfirmation: (email: string) => Promise<string | null>
   /** Enter as an existing planet without credentials (seeded demo accounts). */
   loginAs: (userId: string) => Promise<string | null>
   /** Attach an email + password to the current account. Returns an error or null. */
@@ -86,6 +102,8 @@ export function GalaxyProvider({ children }: { children: React.ReactNode }) {
   // mirrors the recovery flag so the auth gate can stay on the "set a new key"
   // screen even though the recovery link has already signed the user in
   const [recovering, setRecovering] = useState(recovery.pending)
+  // address waiting on a signup confirmation mail; null once verified or dismissed
+  const [pendingConfirmation, setPendingConfirmation] = useState<string | null>(null)
   const [linkStatus, setLinkStatus] = useState<LinkStatus>(isRemote ? 'connecting' : 'offline')
   const [initialFocus, setInitialFocus] = useState<string | null>(null)
   const mounted = useRef(true)
@@ -169,23 +187,41 @@ export function GalaxyProvider({ children }: { children: React.ReactNode }) {
     setBusy(true)
     try {
       const next = await backend.signIn(email, password)
+      setPendingConfirmation(null)
       dispatch({ type: 'hydrate', state: next })
       if (isRemote) setLinkStatus('online')
       sfx.launch()
       return null
     } catch (e) {
-      return message(e)
+      const text = message(e)
+      // Supabase reports an unverified address as "email not confirmed"; point the
+      // user at the confirmation screen rather than leaving them stuck here.
+      if (/not confirmed/i.test(text)) setPendingConfirmation(email.trim().toLowerCase())
+      return text
     } finally {
       setBusy(false)
     }
   }, [])
 
   const signUp = useCallback(
-    async (email: string, password: string, name: string, planetVariant = 0): Promise<string | null> => {
+    async (
+      email: string,
+      password: string,
+      name: string,
+      planetVariant = 0,
+      handle?: string,
+    ): Promise<string | null> => {
       setBusy(true)
       try {
-        const next = await backend.signUp(email, password, name, planetVariant)
-        dispatch({ type: 'hydrate', state: next })
+        const result = await backend.signUp(email, password, name, planetVariant, handle)
+        if (result.status === 'confirm') {
+          // no session yet — the gate shows the "confirm your address" screen
+          setPendingConfirmation(result.email)
+          sfx.click()
+          return null
+        }
+        setPendingConfirmation(null)
+        dispatch({ type: 'hydrate', state: result.state })
         if (isRemote) setLinkStatus('online')
         sfx.launch()
         return null
@@ -197,6 +233,17 @@ export function GalaxyProvider({ children }: { children: React.ReactNode }) {
     },
     [],
   )
+
+  const resendConfirmation = useCallback(async (email: string): Promise<string | null> => {
+    setBusy(true)
+    try {
+      return await backend.resendConfirmation(email)
+    } catch (e) {
+      return message(e)
+    } finally {
+      setBusy(false)
+    }
+  }, [])
 
   const loginAs = useCallback(async (userId: string): Promise<string | null> => {
     setBusy(true)
@@ -286,6 +333,7 @@ export function GalaxyProvider({ children }: { children: React.ReactNode }) {
 
   const clearLastError = useCallback(() => setLastError(null), [])
   const clearInitialFocus = useCallback(() => setInitialFocus(null), [])
+  const clearPendingConfirmation = useCallback(() => setPendingConfirmation(null), [])
 
   const currentUser = state.currentUserId ? state.users[state.currentUserId] ?? null : null
 
@@ -329,12 +377,15 @@ export function GalaxyProvider({ children }: { children: React.ReactNode }) {
     busy,
     ready,
     recovering,
+    pendingConfirmation,
+    clearPendingConfirmation,
     lastError,
     clearLastError,
     initialFocus,
     clearInitialFocus,
     login,
     signUp,
+    resendConfirmation,
     loginAs,
     linkEmail,
     resetPassword,

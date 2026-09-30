@@ -1,6 +1,15 @@
 import type { GalaxyState } from '../../types'
 
 /**
+ * Signing up does not always end in a session: with email confirmation on, the
+ * account exists but the address still has to be verified. The UI shows a
+ * "check your inbox" screen in that case instead of dropping into the galaxy.
+ */
+export type SignUpResult =
+  | { status: 'active'; state: GalaxyState }
+  | { status: 'confirm'; email: string }
+
+/**
  * Everything the store needs from a data source. Two implementations exist:
  * `LocalBackend` (localStorage, the offline demo) and `SupabaseBackend` (the
  * real multi-user galaxy). The store only ever talks to this interface, so the
@@ -14,8 +23,16 @@ export interface Backend {
   readonly name: 'local' | 'supabase'
   /** Load the galaxy and restore any existing session. */
   init(): Promise<GalaxyState>
-  /** Create a new planet. */
-  signUp(email: string, password: string, name: string, planetVariant: number): Promise<GalaxyState>
+  /** Create a new planet. May end in an email-confirmation step instead. */
+  signUp(
+    email: string,
+    password: string,
+    name: string,
+    planetVariant: number,
+    handle?: string,
+  ): Promise<SignUpResult>
+  /** Re-send the signup confirmation mail. */
+  resendConfirmation(email: string): Promise<string | null>
   /** Sign in with email + password. */
   signIn(email: string, password: string): Promise<GalaxyState>
   /**

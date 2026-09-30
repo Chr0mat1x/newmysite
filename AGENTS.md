@@ -149,6 +149,16 @@ change — it is what proves the localStorage fallback still works.
   galaxy rather than keeping stale rows around.
 - Supabase's auth messages are translated to ORBIT's copy in the backend's
   `friendlyAuthError`; keep user-facing strings there, not in components.
+- `enable_confirmations = true` means `signUp` returns no session and the store
+  parks on the confirm screen (`pendingConfirmation`). Do not assume a signup
+  yields a session — check `SignUpResult.status`. Anonymous visitors are exempt
+  (`GOTRUE_SMS_AUTOCONFIRM`/anon users are never "unconfirmed"), so the demo
+  path still enters directly.
+- A config change needs the stack recreated *and* the new migration applied:
+  `npx supabase stop && npx supabase start`, then `npx supabase migration up`.
+  `start` alone re-applied the old migration set and silently skipped the new
+  one. Verify with
+  `docker exec supabase_db_project psql -U postgres -Atc "select proname from pg_proc where proname='handle_available'"`.
 
 ### Reaching the backend from the work host
 
@@ -201,9 +211,17 @@ schema + RLS + triggers live in `supabase/migrations/`, the client layer in
 `src/lib/backends/`, and the app runs against the shared galaxy whenever the two
 `VITE_SUPABASE_*` vars are set.
 
+Registration is a real, verified signup: display name, unique @handle (checked
+against the `handle_available` RPC before submit), email, password with a
+strength meter and a confirm field, and a rules checkbox. The address must then
+be confirmed by mail before the planet can be signed into — `enable_confirmations
+= true` in `config.toml`. An unverified sign-in lands on the "confirm your
+address" screen rather than a dead end.
+
 Password recovery works end to end (request -> in-app mailbox -> link -> new
 password), verified from the public work host.
 
 Without those vars the offline `LocalBackend` still applies, and there `src/lib/auth.ts`
-hashes passwords in the browser — demo-grade, not real security. Set the env vars
+hashes passwords in the browser — demo-grade, not real security. The offline
+backend has no mail, so it skips the confirmation step entirely. Set the env vars
 (and enable anonymous sign-ins) before calling any deployment production-ready.

@@ -126,11 +126,43 @@ export async function openPalette(page, wait, query, fly = false) {
   }
 }
 
-export async function signUp(page, wait, { email, password, name }) {
+export async function signUp(page, wait, { email, password, name, handle }) {
   await page.fill('input[autocomplete="nickname"]', name)
+  await page.fill('input[aria-label="handle"]', handle || `h${stamp()}${Math.floor(Math.random() * 90 + 10)}`)
   await page.fill('input[type="email"]', email)
   await page.fill('input[type="password"]', password)
+  await page.fill('input[aria-label="confirm password"]', password)
+  await page.locator('input[aria-label="accept the rules"]').check()
   await page.locator('button:has-text("launch into orbit")').click()
+  await wait(3500)
+}
+
+/**
+ * Sign up and walk the email-confirmation step, so the caller lands in the
+ * galaxy. Requires the `/mb` proxy and a running local stack.
+ */
+export async function signUpAndConfirm(page, wait, { email, password, name, handle }) {
+  await signUp(page, wait, { email, password, name, handle })
+  await confirmFromMailbox(page, wait, email)
+  await wait(3500)
+}
+
+/** Open the confirmation mail in the in-app mailbox and follow its link. */
+export async function confirmFromMailbox(page, wait, email) {
+  const panel = page.locator('button:has-text("mailbox")').first()
+  if (!(await panel.isVisible().catch(() => false))) return
+  // the panel is already open on the confirm screen; wait for the message
+  for (let i = 0; i < 12; i++) {
+    const n = await panel.locator('span.rounded-full').first().textContent().catch(() => null)
+    if (n) break
+    await wait(1500)
+  }
+  await page.locator('div.border-t button').first().click()
+  await wait(1200)
+  const links = await page.locator('a:has-text("open link")').evaluateAll((as) => as.map((a) => a.href))
+  const link = links.find((l) => l.includes('/sb/auth/v1/verify')) || links[0]
+  if (!link) return
+  await page.goto(link, { waitUntil: 'networkidle' })
   await wait(3500)
 }
 

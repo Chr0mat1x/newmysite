@@ -3,7 +3,7 @@ import { supabase } from '../supabase'
 import { buildState } from '../mappers'
 import { planetSeed } from '../seed'
 import { handleFromIdentity, normalizeEmail } from '../auth'
-import type { Backend } from './types'
+import type { Backend, SignUpResult } from './types'
 
 /**
  * The real, multi-user galaxy. Auth is Supabase Auth; posts, signals, stars and
@@ -53,15 +53,31 @@ export class SupabaseBackend implements Backend {
     return this.loadAll()
   }
 
-  async signUp(email: string, password: string, name: string, planetVariant: number) {
+  async signUp(
+    email: string,
+    password: string,
+    name: string,
+    planetVariant: number,
+    preferredHandle?: string,
+  ): Promise<SignUpResult> {
     const mail = normalizeEmail(email)
     const label = name.trim() || mail.split('@')[0] || 'traveler'
+
+    const requested = preferredHandle?.trim().toLowerCase()
+    if (requested) {
+      if (!/^[a-z0-9_]{3,20}$/.test(requested)) {
+        throw new Error('handles are 3-20 characters: letters, numbers and _')
+      }
+      const { data: free, error: checkError } = await this.client.rpc('handle_available', { desired: requested })
+      if (checkError) throw new Error(checkError.message)
+      if (free === false) throw new Error(`@${requested} is already orbiting — pick another`)
+    }
 
     // reserve a handle locally so the planet's procedural seed matches the
     // handle the database is about to grant (it appends a suffix on collision)
     const { data: existing } = await this.client.from('planets').select('handle')
     const taken = new Set((existing ?? []).map((r) => (r as { handle: string }).handle.toLowerCase()))
-    const handle = handleFromIdentity(label, mail, taken)
+    const handle = requested || handleFromIdentity(label, mail, taken)
 
     const { data, error } = await this.client.auth.signUp({
       email: mail,
@@ -70,12 +86,24 @@ export class SupabaseBackend implements Backend {
         data: { handle, name: label, seed: String(planetSeed(handle, label, planetVariant)) },
       },
     })
-    if (error) throw new Error(error.message)
-    if (!data.session) {
-      throw new Error('check your inbox to confirm this email, then sign in')
-    }
+    if (error) throw new Error(this.friendlyAuthError(error.message))
+    // With confirmations on there is no session yet, and Supabase deliberately
+    // returns a bare user for an address that already exists (so signup cannot
+    // be used to enumerate accounts). Both cases end on the same screen.
+    if (!data.session) return { status: 'confirm', email: mail }
     this.currentUserId = data.session.user.id
-    return this.loadAll()
+    return { status: 'active', state: await this.loadAll() }
+  }
+
+  /** Re-send the signup confirmation mail for an address that never verified. */
+  async resendConfirmation(email: string): Promise<string | null> {
+    const { error } = await this.client.auth.resend({
+      type: 'signup',
+      email: normalizeEmail(email),
+      options: { emailRedirectTo: window.location.origin },
+    })
+    if (error) return this.friendlyAuthError(error.message)
+    return null
   }
 
   async signIn(email: string, password: string) {
@@ -240,6 +268,7 @@ export class SupabaseBackend implements Backend {
   private friendlyAuthError(message: string): string {
     const m = message.toLowerCase()
     if (m.includes('invalid login credentials')) return 'wrong email or password — try again'
+    if (m.includes('email not confirmed')) return 'this email is not confirmed yet — open the link we sent'
     if (m.includes('already registered') || m.includes('already been registered')) {
       return 'this email already has a planet — sign in instead'
     }
