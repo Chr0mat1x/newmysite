@@ -189,6 +189,11 @@ npm run dev -- --port 12000
 `npm test` does not need any of this; `npm run test:supabase` and
 `npm run test:mail` do.
 
+All three browser suites share `tests/harness.mjs`. It pre-sets the onboarding
+flag before app scripts run, closes the orbit panel before clicking the footer,
+and prefers `:visible` locators — the footer and mobile menu both render
+`leave orbit`, and the hidden copy swallows clicks.
+
 ## Status
 
 Email registration replaced nickname-only sign-in. Supabase is now wired in:
