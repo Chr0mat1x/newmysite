@@ -606,7 +606,7 @@ function Orbit() {
 }
 
 function Shell() {
-  const { currentUser, mode, ready } = useGalaxy()
+  const { currentUser, mode, ready, recovering } = useGalaxy()
   const [ambientReady, setAmbientReady] = useState(false)
 
   useEffect(() => {
@@ -666,6 +666,13 @@ function Shell() {
         </div>
       )}
       {currentUser ? <Orbit /> : <AuthGate />}
+      {recovering && currentUser && (
+        // The recovery link signed us in, but the new key has to be chosen
+        // before the galaxy is usable.
+        <div className="fixed inset-0 z-[80] bg-void">
+          <AuthGate />
+        </div>
+      )}
     </div>
   )
 }

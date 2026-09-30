@@ -14,7 +14,7 @@ const VARIANTS = [0, 1, 2, 3, 4, 5, 6, 7]
 type Mode = 'signup' | 'signin' | 'explore' | 'reset' | 'sent' | 'recover'
 
 export function AuthGate() {
-  const { login, signUp, loginAs, resetPassword, setPassword: savePassword, refresh, users, postsOf, busy } = useGalaxy()
+  const { login, signUp, loginAs, resetPassword, setPassword: savePassword, refresh, users, postsOf, busy, recovering } = useGalaxy()
   const [mode, setMode] = useState<Mode>(() => (recovery.pending ? 'recover' : 'signup'))
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -23,11 +23,11 @@ export function AuthGate() {
   const [notice, setNotice] = useState<string | null>(null)
   const [variant, setVariant] = useState(() => Math.floor(Math.random() * VARIANTS.length))
 
+  // the gate starts in (or switches to) "recover" whenever a recovery link is
+  // pending; `recovering` covers the case where the auth event lands after mount
   useEffect(() => {
-    if (!recovery.pending) return
-    recovery.pending = false
-    setMode('recover')
-  }, [])
+    if (recovering) setMode('recover')
+  }, [recovering])
 
   const seed = useMemo(
     () => planetSeed(name || email.split('@')[0] || 'orbit', name || 'traveler', variant),

@@ -4,7 +4,7 @@ import { SUPERNOVA_TTL } from '../types'
 import { LocalBackend } from '../lib/backends/local'
 import { SupabaseBackend } from '../lib/backends/supabase'
 import type { Backend } from '../lib/backends/types'
-import { isRemote, type LinkStatus } from '../lib/supabase'
+import { isRemote, recovery, type LinkStatus } from '../lib/supabase'
 import { sfx } from '../lib/audio'
 
 // Pick the backend once, at module load. `isRemote` is decided by whether the
@@ -32,6 +32,8 @@ interface Ctx {
   busy: boolean
   /** true once the first galaxy load has completed (splash can go away) */
   ready: boolean
+  /** a recovery link was opened and the user still has to pick a new key */
+  recovering: boolean
   /** the most recent failure, already human-readable */
   lastError: string | null
   clearLastError: () => void
@@ -81,6 +83,9 @@ export function GalaxyProvider({ children }: { children: React.ReactNode }) {
   const [busy, setBusy] = useState(true)
   const [ready, setReady] = useState(false)
   const [lastError, setLastError] = useState<string | null>(null)
+  // mirrors the recovery flag so the auth gate can stay on the "set a new key"
+  // screen even though the recovery link has already signed the user in
+  const [recovering, setRecovering] = useState(recovery.pending)
   const [linkStatus, setLinkStatus] = useState<LinkStatus>(isRemote ? 'connecting' : 'offline')
   const [initialFocus, setInitialFocus] = useState<string | null>(null)
   const mounted = useRef(true)
@@ -98,6 +103,9 @@ export function GalaxyProvider({ children }: { children: React.ReactNode }) {
     try {
       const next = await fn()
       if (mounted.current) {
+        // A recovery link already grants a session, but the user has to choose a
+        // new key first; holding the galaxy back keeps the auth gate mounted.
+        if (recovery.pending && next.currentUserId) return true
         dispatch({ type: 'hydrate', state: next })
         setLastError(null)
         if (isRemote) setLinkStatus('online')
@@ -113,6 +121,10 @@ export function GalaxyProvider({ children }: { children: React.ReactNode }) {
       if (mounted.current) setBusy(false)
     }
   }, [])
+
+  // The recovery link's auth event may fire before this provider subscribes,
+  // so sync once on mount and then follow later changes.
+  useEffect(() => recovery.subscribe(() => setRecovering(recovery.pending)), [])
 
   // initial load — `ready` flips once and stays, so the splash never unmounts the
   // auth form mid-request (which would wipe a failed sign-in's error message)
@@ -231,7 +243,10 @@ export function GalaxyProvider({ children }: { children: React.ReactNode }) {
   const setPassword = useCallback(async (password: string): Promise<string | null> => {
     setBusy(true)
     try {
-      return await backend.setPassword(password)
+      const err = await backend.setPassword(password)
+      // finishing the recovery hands control back to the galaxy
+      if (!err) recovery.set(false)
+      return err
     } catch (e) {
       return message(e)
     } finally {
@@ -244,8 +259,13 @@ export function GalaxyProvider({ children }: { children: React.ReactNode }) {
 
   const logout = useCallback(() => {
     sfx.click()
-    void backend.signOut().catch(() => undefined)
-    dispatch({ type: 'hydrate', state: emptyGalaxy() })
+    // Clearing to an empty galaxy would leave the auth gate with no planets to
+    // explore, so re-read the public galaxy once the session is gone.
+    void backend
+      .signOut()
+      .then(() => backend.refresh())
+      .then((next) => dispatch({ type: 'hydrate', state: next }))
+      .catch(() => dispatch({ type: 'hydrate', state: emptyGalaxy() }))
   }, [])
 
   const updateProfile = useCallback((patch: Partial<User>) => void run(() => backend.updateProfile(patch)), [run])
@@ -308,6 +328,7 @@ export function GalaxyProvider({ children }: { children: React.ReactNode }) {
     linkStatus,
     busy,
     ready,
+    recovering,
     lastError,
     clearLastError,
     initialFocus,

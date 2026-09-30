@@ -30,11 +30,29 @@ export const supabase: SupabaseClient | null =
  * Set when a password-recovery link is opened. supabase-js turns the tokens in
  * the URL into a session and emits PASSWORD_RECOVERY; the app then asks for a
  * new password instead of dropping the user into the galaxy.
+ *
+ * A recovery link signs the user in, so this flag is what keeps the "set a new
+ * key" screen on top of the galaxy. It has to be observable: the auth event can
+ * land before React subscribes, so the store reads `pending` on mount and
+ * subscribes for later changes.
  */
-export const recovery = { pending: false }
+export const recovery = {
+  pending: false,
+  listeners: new Set<() => void>(),
+  set(pending: boolean) {
+    this.pending = pending
+    for (const listener of this.listeners) listener()
+  },
+  subscribe(listener: () => void) {
+    this.listeners.add(listener)
+    return () => {
+      this.listeners.delete(listener)
+    }
+  },
+}
 
 supabase?.auth.onAuthStateChange((event) => {
-  if (event === 'PASSWORD_RECOVERY') recovery.pending = true
+  if (event === 'PASSWORD_RECOVERY') recovery.set(true)
 })
 
 export const isRemote = supabase !== null

@@ -50,10 +50,10 @@ ok('message link points at the app host, not loopback', !!link && !/\/\/127\.0\.
 // --- follow it and set a new key -------------------------------------------
 await page.goto(link, { waitUntil: 'networkidle' })
 await wait(3000)
-ok('recovery screen shown after following the link', await page.locator('button:has-text("set new key")').isVisible().catch(() => false))
+ok('recovery screen shown after following the link', await page.locator('button:has-text("SET NEW KEY")').isVisible().catch(() => false))
 
 await page.fill('input[autocomplete="new-password"]', newPw)
-await page.locator('button:has-text("set new key")').click()
+await page.locator('button:has-text("SET NEW KEY")').click()
 await wait(4000)
 ok('entered orbit on the recovery session', await inOrbit(page))
 
@@ -63,7 +63,7 @@ await signIn(page, wait, { email: mail, password: oldPw })
 ok('old password is rejected', await page.locator('text=wrong email or password').first().isVisible().catch(() => false))
 
 await page.fill('input[type="password"]', newPw)
-await page.locator('button:has-text("enter orbit")').click()
+await page.locator('button:has-text("ENTER ORBIT")').click()
 await wait(3500)
 ok('new password is accepted', await inOrbit(page))
 

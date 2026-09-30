@@ -8,7 +8,7 @@
 // It talks to Supabase directly for assertions so it verifies rows actually
 // landed, not just that the UI looked happy.
 
-import { open, reporter, stamp, leaveOrbit, openPalette, signUp, signIn, inOrbit } from './harness.mjs'
+import { open, reporter, stamp, leaveOrbit, dismissOnboarding, openPalette, signUp, signIn, inOrbit } from './harness.mjs'
 
 const SUPABASE = process.env.SUPABASE_URL || 'http://localhost:12000/sb'
 const ANON = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY
@@ -33,6 +33,7 @@ const before = await rest('planets?select=id&handle=eq.nova')
 ok('seeded demo planets are readable', Array.isArray(before) && before.length === 1)
 
 await signUp(page, wait, { email: MAIL, password: PW, name: NAME })
+await dismissOnboarding(page, wait)
 ok('signup lands in the galaxy', await inOrbit(page))
 ok('new planet has no satellites yet', (await page.locator('text=0 satellites').first().isVisible().catch(() => false)))
 
@@ -62,7 +63,7 @@ if (await star.isVisible().catch(() => false)) {
   await star.click()
   await wait(2500)
 }
-const starred = await rest(`stars?select=id&satellite=eq.${sat?.[0]?.id}`)
+const starred = await rest(`stars?select=satellite&satellite=eq.${sat?.[0]?.id}`)
 ok('starring persisted to Supabase', Array.isArray(starred) && starred.length >= 1)
 
 // --- signals ---------------------------------------------------------------
@@ -80,15 +81,17 @@ const signals = await rest(`signals?select=id&satellite=eq.${sat?.[0]?.id}`)
 ok('signal persisted to Supabase', Array.isArray(signals) && signals.length >= 1)
 
 // --- follow ----------------------------------------------------------------
+// Following is an array on the planet row, not a join table.
 await openPalette(page, wait, 'nova', true)
 const follow = page.locator('button:has-text("FOLLOW")').first()
+ok('demo planet exposes a follow control', await follow.isVisible().catch(() => false))
 if (await follow.isVisible().catch(() => false)) {
   await follow.click()
   await wait(2500)
 }
 const demo = await rest('planets?select=id&handle=eq.nova')
-const followed = await rest(`follows?select=id&follower=eq.${mine?.[0]?.id}&target=eq.${demo?.[0]?.id}`)
-ok('follow persisted to Supabase', Array.isArray(followed) && followed.length >= 1)
+const me = await rest(`planets?select=following&id=eq.${mine?.[0]?.id}`)
+ok('follow persisted to Supabase', (me?.[0]?.following ?? []).includes(demo?.[0]?.id))
 
 // --- session persistence ---------------------------------------------------
 await leaveOrbit(page, wait)
