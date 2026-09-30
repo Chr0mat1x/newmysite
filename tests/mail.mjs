@@ -30,7 +30,7 @@ ok('reset form offers a link', await page.locator('button:has-text("send reset l
 await page.fill('input[type="email"]', mail)
 await page.locator('button:has-text("send reset link")').click()
 await wait(3500)
-ok('confirmation shown after requesting', await page.locator('text=reset link sent').first().isVisible().catch(() => false))
+ok('confirmation shown after requesting', await page.locator('text=reset link is now in the mailbox').first().isVisible().catch(() => false))
 
 // --- the mailbox surfaces the message --------------------------------------
 ok('mailbox panel is available', await page.locator('button:has-text("mailbox")').first().isVisible().catch(() => false))

@@ -55,7 +55,9 @@ export function AuthGate() {
     if (mode === 'reset') {
       err = await resetPassword(email)
       if (!err) {
-        setNotice(`reset link sent to ${email.trim().toLowerCase()}`)
+        // Supabase answers the same way for unknown addresses (to avoid leaking
+        // who has an account), so this cannot promise the mail went out.
+        setNotice(`if a planet exists for ${email.trim().toLowerCase()}, its reset link is now in the mailbox below`)
         setMode('sent')
       }
       setError(err)
@@ -185,10 +187,10 @@ export function AuthGate() {
                   </p>
                   <p className="text-[12px] leading-relaxed text-white/45">
                     {isRemote
-                      ? 'No mail server is configured in this demo, so nothing reaches a real inbox. Open the mailbox below to collect the link.'
+                      ? 'No mail server is configured in this demo, so nothing reaches a real inbox. The link for the address above shows up in the mailbox below — usually within a few seconds.'
                       : 'This build is fully offline — accounts live only in this browser, so there is no email to send.'}
                   </p>
-                  <Mailbox open defaultOpen />
+                  <Mailbox open defaultOpen onlyTo={email} />
                   <button
                     onClick={() => switchMode('signin')}
                     className="tap w-full py-2 font-mono text-[11px] uppercase tracking-[0.2em] text-white/40 transition-colors hover:text-white/80 active:text-white/80"

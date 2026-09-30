@@ -7,6 +7,10 @@ import { mailCatcherUrl, supabaseBase } from '../lib/supabase'
  * app's own `/mb` proxy and rewrites the links inside a message to the `/sb`
  * API, so they open from the work host too.
  *
+ * `onlyTo` narrows the list to one recipient. The catcher is shared by every
+ * account on the stack, so without it a reset screen shows a stranger's mail
+ * and it looks like the link for *your* address never arrived.
+ *
  * Renders nothing when there is no catcher (offline build, hosted project).
  */
 
@@ -26,10 +30,19 @@ interface Detail extends Message {
 
 const LINK_RE = /https?:\/\/[^\s<>"']+/g
 
-export function Mailbox({ defaultOpen = false }: { defaultOpen?: boolean; open?: boolean }) {
+export function Mailbox({
+  defaultOpen = false,
+  onlyTo,
+}: {
+  defaultOpen?: boolean
+  open?: boolean
+  onlyTo?: string
+}) {
   const [expanded, setExpanded] = useState(defaultOpen)
   const [messages, setMessages] = useState<Message[] | null>(null)
   const [detail, setDetail] = useState<Detail | null>(null)
+
+  const to = onlyTo?.trim().toLowerCase()
 
   const load = useCallback(async () => {
     if (!mailCatcherUrl) return
@@ -37,11 +50,14 @@ export function Mailbox({ defaultOpen = false }: { defaultOpen?: boolean; open?:
       const res = await fetch(`${mailCatcherUrl}/api/v1/messages`)
       if (!res.ok) throw new Error(String(res.status))
       const data = (await res.json()) as { messages?: Message[] }
-      setMessages(data.messages ?? [])
+      const all = data.messages ?? []
+      setMessages(
+        to ? all.filter((m) => m.To.some((t) => t.Address.toLowerCase() === to)) : all,
+      )
     } catch {
       setMessages([])
     }
-  }, [])
+  }, [to])
 
   useEffect(() => {
     if (!expanded) return
@@ -113,7 +129,9 @@ export function Mailbox({ defaultOpen = false }: { defaultOpen?: boolean; open?:
               {messages === null && <p className="px-1 py-2 text-[11px] text-white/40">reading the mailbox…</p>}
               {messages?.length === 0 && (
                 <p className="px-1 py-2 text-[11px] leading-relaxed text-white/40">
-                  nothing yet. Password-reset mail from this demo lands here, never in a real inbox.
+                  {to
+                    ? `nothing for ${to} yet. Reset mail only goes to an address that already has a planet.`
+                    : 'nothing yet. Password-reset mail from this demo lands here, never in a real inbox.'}
                 </p>
               )}
               {messages?.map((m) => (
