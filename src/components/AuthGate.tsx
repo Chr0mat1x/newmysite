@@ -5,7 +5,7 @@ import { Mailbox } from './Mailbox'
 import { useGalaxy } from '../state/store'
 import { sfx } from '../lib/audio'
 import { planetSeed } from '../lib/seed'
-import { PASSWORD_MIN } from '../lib/auth'
+import { PASSWORD_MIN, STRENGTH_LABELS, strengthOf } from '../lib/auth'
 import { isRemote, recovery } from '../lib/supabase'
 
 /** How many procedural worlds the launch screen offers to pick from. */
@@ -13,18 +13,8 @@ const VARIANTS = [0, 1, 2, 3, 4, 5, 6, 7]
 
 type Mode = 'signup' | 'signin' | 'explore' | 'reset' | 'sent' | 'recover' | 'confirm'
 
-/** Copy for the password-strength meter, weakest first. */
-const STRENGTH = ['too short', 'workable', 'solid', 'fortress']
-
-/** A rough 0-3 score: length plus the variety of characters in use. */
-function strengthOf(pw: string): number {
-  if (pw.length < PASSWORD_MIN) return 0
-  let score = 1
-  const kinds = [/[a-z]/, /[A-Z]/, /\d/, /[^A-Za-z0-9]/].filter((re) => re.test(pw)).length
-  if (kinds >= 2 && pw.length >= 12) score = 2
-  if (kinds >= 3 && pw.length >= 16) score = 3
-  return score
-}
+/** Seconds a user must wait before asking for another mail. Auth rate-limits too. */
+const RESEND_COOLDOWN = 60
 
 export function AuthGate() {
   const {
@@ -52,6 +42,18 @@ export function AuthGate() {
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [variant, setVariant] = useState(() => Math.floor(Math.random() * VARIANTS.length))
+  // unix ms when the resend button unlocks again; 0 means "ready now"
+  const [resendAt, setResendAt] = useState(0)
+  const [now, setNow] = useState(Date.now())
+
+  // tick only while a cooldown is pending, so the button label can count down
+  useEffect(() => {
+    if (!resendAt) return
+    const t = setInterval(() => setNow(Date.now()), 500)
+    return () => clearInterval(t)
+  }, [resendAt])
+
+  const cooldownLeft = Math.max(0, Math.ceil((resendAt - now) / 1000))
 
   // the gate starts in (or switches to) "recover" whenever a recovery link is
   // pending; `recovering` covers the case where the auth event lands after mount
@@ -87,6 +89,10 @@ export function AuthGate() {
   const submit = async () => {
     let err: string | null = null
     if (mode === 'recover') {
+      if (password !== confirm) {
+        setError('the two passwords do not match')
+        return
+      }
       err = await savePassword(password)
       if (!err) {
         // updateUser keeps the recovery session; re-read the galaxy into it.
@@ -97,20 +103,26 @@ export function AuthGate() {
       return
     }
     if (mode === 'reset') {
+      if (cooldownLeft > 0) return
       err = await resetPassword(email)
       if (!err) {
         // Supabase answers the same way for unknown addresses (to avoid leaking
         // who has an account), so this cannot promise the mail went out.
         setNotice(`if a planet exists for ${email.trim().toLowerCase()}, its reset link is now in the mailbox below`)
+        setResendAt(Date.now() + RESEND_COOLDOWN * 1000)
         setMode('sent')
       }
       setError(err)
       return
     }
     if (mode === 'confirm') {
+      if (cooldownLeft > 0) return
       err = await resendConfirmation(pendingConfirmation ?? email)
       setError(err)
-      if (!err) setNotice(`a fresh confirmation link is on its way to ${pendingConfirmation ?? email.trim().toLowerCase()}`)
+      if (!err) {
+        setNotice(`a fresh confirmation link is on its way to ${pendingConfirmation ?? email.trim().toLowerCase()}`)
+        setResendAt(Date.now() + RESEND_COOLDOWN * 1000)
+      }
       return
     }
     if (mode === 'signup') {
@@ -234,10 +246,10 @@ export function AuthGate() {
                   )}
                   <button
                     onClick={() => void submit()}
-                    disabled={busy}
+                    disabled={busy || cooldownLeft > 0}
                     className="tap w-full rounded-xl border border-white/15 py-2.5 font-display text-[13px] font-semibold tracking-wider text-white/80 transition-all hover:border-white/40 hover:text-white active:scale-[0.98] disabled:opacity-30"
                   >
-                    {busy ? 'SENDING…' : 'RESEND CONFIRMATION LINK'}
+                    {busy ? 'SENDING…' : cooldownLeft > 0 ? `RESEND IN ${cooldownLeft}s` : 'RESEND CONFIRMATION LINK'}
                   </button>
                   <button
                     onClick={() => switchMode('signin')}
@@ -258,10 +270,42 @@ export function AuthGate() {
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       onKeyDown={(e) => e.key === 'Enter' && submit()}
-                      placeholder="at least 8 characters"
+                      placeholder={`at least ${PASSWORD_MIN} characters`}
                       autoComplete="new-password"
                       className="input"
                     />
+                    {password.length > 0 && (
+                      <span className="mt-1.5 flex items-center gap-2">
+                        <span className="flex gap-1">
+                          {[0, 1, 2, 3].map((i) => (
+                            <span
+                              key={i}
+                              className={`h-1 w-8 rounded-full transition-colors ${
+                                i <= strengthOf(password) ? 'bg-white/70' : 'bg-white/10'
+                              }`}
+                            />
+                          ))}
+                        </span>
+                        <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-white/40">
+                          {STRENGTH_LABELS[strengthOf(password)]}
+                        </span>
+                      </span>
+                    )}
+                  </Field>
+                  <Field label="confirm new password">
+                    <input
+                      type="password"
+                      value={confirm}
+                      onChange={(e) => setConfirm(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && submit()}
+                      placeholder="repeat it"
+                      autoComplete="new-password"
+                      aria-label="confirm new password"
+                      className="input"
+                    />
+                    {confirm.length > 0 && confirm !== password && (
+                      <span className="mt-1 block font-mono text-[10px] text-white/45">the two do not match yet</span>
+                    )}
                   </Field>
                   {error && (
                     <p role="alert" className="rounded-xl border border-white/15 bg-white/[0.05] px-3 py-2 text-[12px] text-white/70">
@@ -270,7 +314,7 @@ export function AuthGate() {
                   )}
                   <button
                     onClick={() => void submit()}
-                    disabled={!password || busy}
+                    disabled={password.length < PASSWORD_MIN || password !== confirm || busy}
                     className="tap w-full rounded-xl bg-gradient-to-r from-pulse to-glow py-3 font-display text-sm font-semibold tracking-wider text-black transition-all hover:brightness-110 active:scale-[0.98] disabled:opacity-30"
                   >
                     {busy ? 'SAVING…' : 'SET NEW KEY'}
@@ -287,6 +331,18 @@ export function AuthGate() {
                       : 'This build is fully offline — accounts live only in this browser, so there is no email to send.'}
                   </p>
                   <Mailbox open defaultOpen onlyTo={email} />
+                  <button
+                    onClick={() => void submit()}
+                    disabled={busy || cooldownLeft > 0}
+                    className="tap w-full rounded-xl border border-white/15 py-2.5 font-display text-[13px] font-semibold tracking-wider text-white/80 transition-all hover:border-white/40 hover:text-white active:scale-[0.98] disabled:opacity-30"
+                  >
+                    {busy ? 'SENDING…' : cooldownLeft > 0 ? `RESEND IN ${cooldownLeft}s` : 'SEND ANOTHER LINK'}
+                  </button>
+                  {error && (
+                    <p role="alert" className="rounded-xl border border-white/15 bg-white/[0.05] px-3 py-2 text-[12px] text-white/70">
+                      {error}
+                    </p>
+                  )}
                   <button
                     onClick={() => switchMode('signin')}
                     className="tap w-full py-2 font-mono text-[11px] uppercase tracking-[0.2em] text-white/40 transition-colors hover:text-white/80 active:text-white/80"
@@ -384,7 +440,7 @@ export function AuthGate() {
                         ))}
                       </span>
                       <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-white/40">
-                        {STRENGTH[strengthOf(password)]}
+                        {STRENGTH_LABELS[strengthOf(password)]}
                       </span>
                     </span>
                   )}

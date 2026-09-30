@@ -25,6 +25,7 @@ export function MobileMenu({
   onJump,
   onConsole,
   onSearch,
+  onAccount,
 }: {
   open: boolean
   onClose: () => void
@@ -34,6 +35,7 @@ export function MobileMenu({
   onJump: (id: string) => void
   onConsole: (tab: 'transmissions' | 'constellation' | 'cargo') => void
   onSearch: () => void
+  onAccount: () => void
 }) {
   const { currentUser, userById, logout, resetGalaxy, transmissions, following, savedPosts } = useGalaxy()
   const [confirmReset, setConfirmReset] = useState(false)
@@ -191,6 +193,15 @@ export function MobileMenu({
               </div>
 
               <div className="space-y-1 border-t border-white/[0.07] pt-4">
+                <button
+                  onClick={() => {
+                    sfx.click()
+                    onAccount()
+                  }}
+                  className="tap w-full rounded-xl border border-white/10 py-3 font-mono text-[11px] uppercase tracking-[0.18em] text-white/55 transition-colors active:bg-white/5 active:text-white"
+                >
+                  account settings
+                </button>
                 <button
                   onClick={logout}
                   className="tap w-full rounded-xl border border-white/10 py-3 font-mono text-[11px] uppercase tracking-[0.18em] text-white/55 transition-colors active:bg-white/5 active:text-white"

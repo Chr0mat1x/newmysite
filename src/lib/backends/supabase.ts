@@ -159,6 +159,60 @@ export class SupabaseBackend implements Backend {
     return null
   }
 
+  /**
+   * Change the account email. Supabase mails a confirmation link to the *new*
+   * address and keeps the old one active until it is opened, so this resolves as
+   * soon as the request is accepted rather than when the change lands.
+   */
+  async changeEmail(email: string): Promise<string | null> {
+    const mail = normalizeEmail(email)
+    if (!mail) return 'enter a valid email address'
+    const { error } = await this.client.auth.updateUser(
+      { email: mail },
+      { emailRedirectTo: window.location.origin },
+    )
+    if (error) return this.friendlyAuthError(error.message)
+    return null
+  }
+
+  /**
+   * Change the password from a live session. Supabase has no "verify current
+   * password" endpoint, so we prove ownership by re-authenticating first: a
+   * wrong current password fails the sign-in and nothing is written.
+   */
+  async changePassword(current: string, next: string): Promise<string | null> {
+    if (next.length < 8) return 'password needs at least 8 characters'
+    if (current === next) return 'the new key matches the old one'
+    const { data: session } = await this.client.auth.getSession()
+    const mail = session.session?.user.email
+    if (!mail) return 'you are not signed in'
+    const { error: reauth } = await this.client.auth.signInWithPassword({ email: mail, password: current })
+    if (reauth) return 'the current key is wrong'
+    const { error } = await this.client.auth.updateUser({ password: next })
+    if (error) return this.friendlyAuthError(error.message)
+    return null
+  }
+
+  /** Revoke every refresh token for this account; other devices drop on next call. */
+  async signOutEverywhere(): Promise<string | null> {
+    const { error } = await this.client.auth.signOut({ scope: 'global' })
+    if (error) return this.friendlyAuthError(error.message)
+    this.currentUserId = null
+    return null
+  }
+
+  /**
+   * Delete the planet and the account behind it. `delete_me` removes the auth
+   * user, so there is no session left to revoke — calling signOut would only
+   * POST a token that no longer resolves and surface a spurious error.
+   */
+  async deleteAccount(): Promise<string | null> {
+    const { error } = await this.client.rpc('delete_me')
+    if (error) return this.friendlyAuthError(error.message)
+    this.currentUserId = null
+    return null
+  }
+
   async updateProfile(patch: { name?: string; bio?: string }) {
     const me = await this.requireUserId()
     const update: Record<string, string> = {}
@@ -273,6 +327,7 @@ export class SupabaseBackend implements Backend {
       return 'this email already has a planet — sign in instead'
     }
     if (m.includes('password should be at least')) return 'password needs at least 8 characters'
+    if (m.includes('different password') || m.includes('same as the old')) return 'the new key must differ from the old one'
     if (m.includes('email') && m.includes('invalid')) return 'enter a valid email address'
     return message
   }

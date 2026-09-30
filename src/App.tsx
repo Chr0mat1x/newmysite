@@ -13,6 +13,7 @@ import { CommandPalette } from './components/CommandPalette'
 import { SignalsConsole } from './components/SignalsConsole'
 import { Toasts, type Toast } from './components/Toasts'
 import { Onboarding } from './components/Onboarding'
+import { AccountSettings } from './components/AccountSettings'
 import { PlanetBadge } from './components/PlanetBadge'
 import { layoutGalaxy } from './engine/layout'
 import type { RenderStats } from './engine/GalaxyCanvas'
@@ -35,6 +36,7 @@ function Orbit() {
   const [stats, setStats] = useState<RenderStats>({ fps: 60, visible: 0, total: 0 })
   const [muted, setMute] = useState(isMuted())
   const [menuOpen, setMenuOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const isMobile = useIsMobile()
   const novaCount = useRef<number | null>(null)
 
@@ -571,7 +573,12 @@ function Orbit() {
           setMenuOpen(false)
           setPaletteOpen(true)
         }}
+        onAccount={() => {
+          setMenuOpen(false)
+          setSettingsOpen(true)
+        }}
       />
+      <AccountSettings open={settingsOpen} onClose={() => setSettingsOpen(false)} />
       <Toasts toasts={toasts} onDismiss={(id) => setToasts((p) => p.filter((t) => t.id !== id))} />
       <Onboarding
         open={onboarding}
@@ -585,6 +592,10 @@ function Orbit() {
       {currentUser && (
         <div className="pointer-events-auto absolute bottom-3 left-1/2 z-10 hidden -translate-x-1/2 flex-col items-center gap-1.5 font-mono text-[9px] uppercase tracking-[0.18em] text-white/20 sm:flex">
           <div className="flex gap-3">
+            <button onClick={() => setSettingsOpen(true)} className="transition-colors hover:text-white/60">
+              account
+            </button>
+            <span>·</span>
             <button onClick={logout} className="transition-colors hover:text-white/60">
               leave orbit
             </button>

@@ -68,6 +68,14 @@ interface Ctx {
   resetPassword: (email: string) => Promise<string | null>
   /** Change the signed-in account's password (finishes a recovery). */
   setPassword: (password: string) => Promise<string | null>
+  /** Change the account email; resolves once the confirmation mail is requested. */
+  changeEmail: (email: string) => Promise<string | null>
+  /** Change the password from a live session, proving the current one first. */
+  changePassword: (current: string, next: string) => Promise<string | null>
+  /** Revoke every session for this account. */
+  signOutEverywhere: () => Promise<string | null>
+  /** Delete the account and its planet irreversibly. */
+  deleteAccount: () => Promise<string | null>
   /** Re-read the galaxy from the source. */
   refresh: () => Promise<boolean>
   logout: () => void
@@ -301,6 +309,52 @@ export function GalaxyProvider({ children }: { children: React.ReactNode }) {
     }
   }, [])
 
+  /**
+   * Account self-service. These work off the live session, so they do not go
+   * through `run` (which hydrates the galaxy) — they return an error string and
+   * the settings panel decides what to show. Deletion and a global sign-out
+   * additionally leave the session, so the galaxy is re-read into the empty one.
+   */
+  const changeEmail = useCallback(async (email: string): Promise<string | null> => {
+    try {
+      return await backend.changeEmail(email)
+    } catch (e) {
+      return message(e)
+    }
+  }, [])
+
+  const changePassword = useCallback(async (current: string, next: string): Promise<string | null> => {
+    try {
+      return await backend.changePassword(current, next)
+    } catch (e) {
+      return message(e)
+    }
+  }, [])
+
+  const signOutEverywhere = useCallback(async (): Promise<string | null> => {
+    try {
+      const err = await backend.signOutEverywhere()
+      if (err) return err
+      const next = await backend.refresh()
+      if (mounted.current) dispatch({ type: 'hydrate', state: next })
+      return null
+    } catch (e) {
+      return message(e)
+    }
+  }, [])
+
+  const deleteAccount = useCallback(async (): Promise<string | null> => {
+    try {
+      const err = await backend.deleteAccount()
+      if (err) return err
+      const next = await backend.refresh()
+      if (mounted.current) dispatch({ type: 'hydrate', state: next })
+      return null
+    } catch (e) {
+      return message(e)
+    }
+  }, [])
+
   /** Re-read the galaxy from the source, e.g. after an out-of-band auth change. */
   const refresh = useCallback(() => run(() => backend.refresh()), [run])
 
@@ -390,6 +444,10 @@ export function GalaxyProvider({ children }: { children: React.ReactNode }) {
     linkEmail,
     resetPassword,
     setPassword,
+    changeEmail,
+    changePassword,
+    signOutEverywhere,
+    deleteAccount,
     refresh,
     logout,
     updateProfile,

@@ -6,7 +6,7 @@
 // in-app mailbox, follow it, set a new key, and prove the old one is dead.
 // Needs the local stack's mail catcher reached through the `/mb` proxy.
 
-import { open, reporter, stamp, leaveOrbit, signUp, confirmFromMailbox, signIn, inOrbit } from './harness.mjs'
+import { open, reporter, stamp, leaveOrbit, signUp, confirmFromMailbox, signIn, inOrbit, openAccount } from './harness.mjs'
 
 const { ok, errors, finish } = reporter('ORBIT · mail')
 const { browser, page, wait, contextErrors } = await open()
@@ -45,6 +45,7 @@ await page.fill('input[type="email"]', mail)
 await page.locator('button:has-text("send reset link")').click()
 await wait(3500)
 ok('confirmation shown after requesting', await page.locator('text=reset link is now in the mailbox').first().isVisible().catch(() => false))
+ok('resend is on cooldown right after a request', await page.locator('button:has-text("resend in")').first().isVisible().catch(() => false))
 
 // --- the mailbox surfaces the message --------------------------------------
 ok('mailbox panel is available', await page.locator('button:has-text("mailbox")').first().isVisible().catch(() => false))
@@ -67,6 +68,7 @@ await wait(3000)
 ok('recovery screen shown after following the link', await page.locator('button:has-text("SET NEW KEY")').isVisible().catch(() => false))
 
 await page.fill('input[autocomplete="new-password"]', newPw)
+await page.fill('input[aria-label="confirm new password"]', newPw)
 await page.locator('button:has-text("SET NEW KEY")').click()
 await wait(4000)
 ok('entered orbit on the recovery session', await inOrbit(page))
@@ -80,6 +82,27 @@ await page.fill('input[type="password"]', newPw)
 await page.locator('button:has-text("ENTER ORBIT")').click()
 await wait(3500)
 ok('new password is accepted', await inOrbit(page))
+
+// --- changing the email needs a confirmation at the new address -------------
+const newMail = `moved_${stamp()}@orbit.space`
+const subjectAt = async (address) => {
+  const box = await fetch(`http://127.0.0.1:54324/api/v1/messages`).then((r) => r.json())
+  return (box.messages ?? [])
+    .filter((m) => m.To?.[0]?.Address === address)
+    .map((m) => m.Subject ?? '')
+}
+await openAccount(page, wait)
+await page.fill('input[aria-label="new email"]', newMail)
+await page.locator('button:has-text("change email")').click()
+await wait(3500)
+ok('email change asks for confirmation', await page.locator('text=confirmation sent').first().isVisible().catch(() => false))
+
+// Supabase's secure change notifies *both* addresses, so the old one keeps
+// working until the new inbox confirms — that is what stops a typo locking you out
+const newSubjects = await subjectAt(newMail)
+ok('new address gets the change confirmation', newSubjects.some((s) => /new email/i.test(s)), newSubjects.join(','))
+const oldSubjects = await subjectAt(mail)
+ok('old address is told a change was requested', oldSubjects.some((s) => /new email/i.test(s)), oldSubjects.join(','))
 
 ok('no unexpected console errors', contextErrors.length === 0, contextErrors.join(' | '))
 errors.push(...contextErrors)

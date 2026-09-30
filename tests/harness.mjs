@@ -176,3 +176,9 @@ export async function signIn(page, wait, { email, password }) {
 }
 
 export const inOrbit = (page) => page.locator('button:has-text("leave orbit"):visible').first().isVisible().catch(() => false)
+
+/** Open the account settings dialog from the desktop footer. */
+export async function openAccount(page, wait) {
+  await page.locator('button:has-text("account"):visible').first().click()
+  await wait(900)
+}

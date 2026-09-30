@@ -118,6 +118,39 @@ export class LocalBackend implements Backend {
     return null
   }
 
+  /** Offline accounts are just rows in this browser, so the change is immediate. */
+  async changeEmail(email: string): Promise<string | null> {
+    const me = this.require()
+    const mail = normalizeEmail(email)
+    if (!isValidEmail(mail)) return 'enter a valid email address'
+    if (Object.values(this.state.users).some((u) => u.id !== me.id && !u.mock && u.email === mail)) {
+      return 'another planet already uses this email'
+    }
+    this.apply({ type: 'linkEmail', userId: me.id, email: mail, passwordHash: me.passwordHash ?? '' })
+    return null
+  }
+
+  async changePassword(current: string, next: string): Promise<string | null> {
+    const me = this.require()
+    if (!isValidPassword(next)) return 'password needs at least 8 characters'
+    if (!me.passwordHash || !verifyPassword(current, me.id, me.passwordHash)) return 'the current key is wrong'
+    if (current === next) return 'the new key matches the old one'
+    this.apply({ type: 'linkEmail', userId: me.id, email: me.email ?? '', passwordHash: hashPassword(next, me.id) })
+    return null
+  }
+
+  /** A single browser holds the only session, so dropping it is the whole job. */
+  async signOutEverywhere(): Promise<string | null> {
+    this.apply({ type: 'logout' })
+    return null
+  }
+
+  async deleteAccount(): Promise<string | null> {
+    const me = this.require()
+    this.apply({ type: 'deleteUser', id: me.id })
+    return null
+  }
+
   async updateProfile(patch: { name?: string; bio?: string }) {
     this.require()
     return this.apply({ type: 'updateUser', patch })

@@ -8,7 +8,7 @@
 // It talks to Supabase directly for assertions so it verifies rows actually
 // landed, not just that the UI looked happy.
 
-import { open, reporter, stamp, leaveOrbit, dismissOnboarding, openPalette, signUp, signUpAndConfirm, signIn, inOrbit } from './harness.mjs'
+import { open, reporter, stamp, leaveOrbit, dismissOnboarding, openPalette, signUp, signUpAndConfirm, signIn, inOrbit, openAccount } from './harness.mjs'
 
 const SUPABASE = process.env.SUPABASE_URL || 'http://localhost:12000/sb'
 const ANON = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY
@@ -32,7 +32,7 @@ const rest = async (path) => {
 const before = await rest('planets?select=id&handle=eq.nova')
 ok('seeded demo planets are readable', Array.isArray(before) && before.length === 1)
 
-await signUpAndConfirm(page, wait, { email: MAIL, password: PW, name: NAME })
+await signUpAndConfirm(page, wait, { email: MAIL, password: PW, name: NAME, handle: key })
 await dismissOnboarding(page, wait)
 ok('signup lands in the galaxy after confirming', await inOrbit(page))
 ok('new planet has no satellites yet', (await page.locator('text=0 satellites').first().isVisible().catch(() => false)))
@@ -100,8 +100,33 @@ ok('logout returns to the auth gate', await page.locator('button:has-text("sign 
 await signIn(page, wait, { email: MAIL, password: PW })
 ok('signing back in restores the same planet', await inOrbit(page))
 
-// --- auth errors -----------------------------------------------------------
+// --- account settings: change the key from a live session -------------------
+await openAccount(page, wait)
+ok('account settings opens', await page.locator('[aria-label="account settings"]').isVisible().catch(() => false))
+
+await page.locator('button:has-text("password")').first().click()
+await wait(600)
+const NEW_PW = 'fresh key 42!'
+await page.fill('input[aria-label="current password"]', PW)
+await page.fill('input[aria-label="new password"]', NEW_PW)
+await page.fill('input[aria-label="confirm new password"]', NEW_PW)
+await page.locator('button:has-text("change password")').click()
+await wait(3000)
+ok('password change is accepted', await page.locator('text=key changed').first().isVisible().catch(() => false))
+
+// the new key is real: sign out and back in with it
+await page.locator('[aria-label="close settings"]').click()
+await wait(500)
 await leaveOrbit(page, wait)
+await signIn(page, wait, { email: MAIL, password: PW })
+ok('old key is now dead', await page.locator('text=wrong email or password').first().isVisible().catch(() => false))
+await page.fill('input[type="password"]', NEW_PW)
+await page.locator('button:has-text("enter orbit")').click()
+await wait(3500)
+ok('new key signs in', await inOrbit(page))
+await leaveOrbit(page, wait)
+
+// --- auth errors -----------------------------------------------------------
 await signIn(page, wait, { email: MAIL, password: 'definitely wrong' })
 ok('wrong password is rejected', await page.locator('text=wrong email or password').first().isVisible().catch(() => false))
 
@@ -119,6 +144,23 @@ ok('explore list offers demo planets', (await page.locator('button:has-text("Nov
 await page.locator('button:has-text("Nova")').first().click()
 await wait(3500)
 ok('visitor enters the galaxy without confirming anything', await inOrbit(page))
+
+// --- deletion: sign back into the real planet and remove it -----------------
+await page.locator('[aria-label="close orbit"]').first().click()
+await wait(900)
+await leaveOrbit(page, wait)
+await signIn(page, wait, { email: MAIL, password: NEW_PW })
+ok('registered planet is reachable for deletion', await inOrbit(page))
+
+await openAccount(page, wait)
+await page.locator('button:has-text("danger")').first().click()
+await wait(600)
+await page.fill('input[aria-label="confirm delete"]', `@${key}`)
+await page.locator('button:has-text("delete my planet")').click()
+await wait(4000)
+ok('deleting the planet returns to the auth gate', !(await inOrbit(page)))
+const gone = await rest(`planets?select=id&name=eq.${encodeURIComponent(NAME)}`)
+ok('deleted planet is gone from Supabase', Array.isArray(gone) && gone.length === 0)
 
 await browser.close()
 ok('no unexpected console errors', contextErrors.length === 0, contextErrors.join(' | '))

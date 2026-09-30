@@ -7,6 +7,7 @@ export type Action =
   | { type: 'logout' }
   | { type: 'updateUser'; patch: Partial<User> }
   | { type: 'linkEmail'; userId: string; email: string; passwordHash: string }
+  | { type: 'deleteUser'; id: string }
   | { type: 'addPost'; post: Post }
   | { type: 'deletePost'; id: string }
   | { type: 'toggleLike'; postId: string; userId: string }
@@ -47,6 +48,36 @@ export function reducer(state: GalaxyState, action: Action): GalaxyState {
     }
     case 'addPost':
       return { ...state, posts: { ...state.posts, [action.post.id]: action.post } }
+    case 'deleteUser': {
+      const posts = { ...state.posts }
+      // the planet's satellites go with it, and any signal or star they left
+      // elsewhere goes too — a deleted world must not linger in other orbits
+      for (const [id, p] of Object.entries(posts)) {
+        if (p.authorId === action.id) {
+          delete posts[id]
+          continue
+        }
+        const signals = p.signals.filter((s) => s.authorId !== action.id)
+        const likes = p.likes.filter((l) => l !== action.id)
+        if (signals.length !== p.signals.length || likes.length !== p.likes.length) {
+          posts[id] = { ...p, signals, likes }
+        }
+      }
+      const users: Record<string, User> = {}
+      for (const [id, u] of Object.entries(state.users)) {
+        if (id === action.id) continue
+        users[id] = {
+          ...u,
+          following: (u.following ?? []).filter((f) => f !== action.id),
+        }
+      }
+      return {
+        ...state,
+        users,
+        posts,
+        currentUserId: state.currentUserId === action.id ? null : state.currentUserId,
+      }
+    }
     case 'deletePost': {
       const posts = { ...state.posts }
       delete posts[action.id]

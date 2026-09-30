@@ -221,7 +221,34 @@ address" screen rather than a dead end.
 Password recovery works end to end (request -> in-app mailbox -> link -> new
 password), verified from the public work host.
 
+`AccountSettings.tsx` closes the loop on account self-service, reachable from the
+desktop footer (`account`) and the mobile navigator:
+
+- **Email change** goes through `updateUser({ email })`. Supabase's secure change
+  mails a confirmation to *both* the old and the new address, and the old one
+  keeps working until the new inbox confirms — that is deliberate, so a typo
+  cannot lock anyone out. Do not "fix" the duplicate mail.
+- **Password change** re-authenticates with the current key first, because
+  Supabase has no verify-current-password endpoint; a wrong current password
+  fails the sign-in and nothing is written.
+- **Sign out everywhere** uses `signOut({ scope: 'global' })`.
+- **Delete planet** calls the `delete_me()` RPC (`20260930140000_account.sql`).
+  `auth.users` is not writable with the anon key, so this `security definer`
+  function is the one privileged operation ORBIT needs; it acts only on
+  `auth.uid()`, drops the planet (satellites/signals/stars cascade), scrubs the
+  id from other planets' `following`/`saved`, then deletes the auth user. It is
+  granted to `authenticated` only — an anon call returns 401/42501.
+  `deleteAccount` deliberately does **not** call `signOut` afterwards: the auth
+  user is already gone, so the logout POST would 403 on a dead token and the
+  console would carry a spurious error.
+
+`minimum_password_length = 8` in `config.toml` now matches `PASSWORD_MIN`, so the
+API rejects what the form would. The resend/`forgot` buttons sit on a 60s
+cooldown (`RESEND_COOLDOWN`) to hold off the auth rate limiter.
+
 Without those vars the offline `LocalBackend` still applies, and there `src/lib/auth.ts`
 hashes passwords in the browser — demo-grade, not real security. The offline
-backend has no mail, so it skips the confirmation step entirely. Set the env vars
+backend has no mail, so it skips the confirmation step entirely; email and
+password changes there take effect immediately, and `deleteAccount` purges the
+user's row, satellites, signals and follows through the reducer. Set the env vars
 (and enable anonymous sign-ins) before calling any deployment production-ready.

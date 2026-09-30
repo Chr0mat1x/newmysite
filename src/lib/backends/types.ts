@@ -50,6 +50,19 @@ export interface Backend {
   resetPassword(email: string): Promise<string | null>
   /** Change the signed-in account's password (used to finish a recovery). */
   setPassword(password: string): Promise<string | null>
+  /**
+   * Change the account's email. Returns a human-readable error, or null if the
+   * change was accepted. With double_confirm_changes on, the address only takes
+   * effect after the link in the new inbox is opened — so success here means
+   * "pending", not "done".
+   */
+  changeEmail(email: string): Promise<string | null>
+  /** Change the account's password from a signed-in session. */
+  changePassword(current: string, next: string): Promise<string | null>
+  /** Revoke every session for this account, including this one. */
+  signOutEverywhere(): Promise<string | null>
+  /** Delete the account and its planet for good. */
+  deleteAccount(): Promise<string | null>
   updateProfile(patch: { name?: string; bio?: string }): Promise<GalaxyState>
   createPost(text: string, image?: string): Promise<GalaxyState>
   deletePost(id: string): Promise<GalaxyState>
