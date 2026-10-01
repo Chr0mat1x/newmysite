@@ -546,6 +546,15 @@ export function AuthGate() {
           )}
         </AnimatePresence>
       </motion.div>
+
+      {isRemote && mode !== 'confirm' && mode !== 'sent' && (
+        // The catcher is the only inbox this demo has, so keep it reachable from
+        // every screen — the confirmation panel is gone once you navigate away,
+        // and the link must not become unreachable after a refresh.
+        <div className="mx-auto mt-4 w-full max-w-sm px-4 pb-6">
+          <Mailbox />
+        </div>
+      )}
     </div>
   )
 }
