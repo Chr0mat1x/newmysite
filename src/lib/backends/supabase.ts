@@ -1,4 +1,4 @@
-import type { GalaxyState, PlanetRow, SatelliteRow, SignalRow, StarRow } from '../../types'
+import type { GalaxyState, MessageRow, PlanetRow, SatelliteRow, SignalRow, StarRow } from '../../types'
 import { supabase } from '../supabase'
 import { buildState } from '../mappers'
 import { planetSeed } from '../seed'
@@ -30,13 +30,17 @@ export class SupabaseBackend implements Backend {
   }
 
   private async loadAll(): Promise<GalaxyState> {
-    const [planets, satellites, signals, stars] = await Promise.all([
+    const [planets, satellites, signals, stars, messages] = await Promise.all([
       this.client.from('planets').select('*'),
       this.client.from('satellites').select('*'),
       this.client.from('signals').select('*'),
       this.client.from('stars').select('*'),
+      // RLS already narrows this to the caller's own threads, so no filter here
+      this.currentUserId
+        ? this.client.from('messages').select('*')
+        : Promise.resolve({ data: [], error: null }),
     ])
-    const err = planets.error || satellites.error || signals.error || stars.error
+    const err = planets.error || satellites.error || signals.error || stars.error || messages.error
     if (err) throw new Error(err.message)
     return buildState(
       (planets.data ?? []) as PlanetRow[],
@@ -44,6 +48,7 @@ export class SupabaseBackend implements Backend {
       (signals.data ?? []) as SignalRow[],
       (stars.data ?? []) as StarRow[],
       this.currentUserId,
+      (messages.data ?? []) as MessageRow[],
     )
   }
 
@@ -299,6 +304,32 @@ export class SupabaseBackend implements Backend {
     const saved: string[] = (me as { saved: string[] | null }).saved ?? []
     const next = saved.includes(postId) ? saved.filter((s) => s !== postId) : [...saved, postId]
     const { error } = await this.client.from('planets').update({ saved: next }).eq('id', this.currentUserId!)
+    if (error) throw new Error(error.message)
+    return this.loadAll()
+  }
+
+  async sendMessage(to: string, text: string) {
+    const me = await this.requireUserId()
+    const body = text.trim()
+    if (!body) throw new Error('a transmission needs words')
+    if (to === me) throw new Error('you cannot message your own planet')
+    // RLS would refuse a forged sender anyway; this turns that into a clear
+    // message instead of an opaque policy violation.
+    const { error } = await this.client.from('messages').insert({ sender: me, recipient: to, body })
+    if (error) throw new Error(error.message)
+    return this.loadAll()
+  }
+
+  async readThread(peerId: string) {
+    const me = await this.requireUserId()
+    // only messages the peer sent me: the update policy is recipient-only, so
+    // anything else would be silently dropped by RLS
+    const { error } = await this.client
+      .from('messages')
+      .update({ read_at: new Date().toISOString() })
+      .eq('sender', peerId)
+      .eq('recipient', me)
+      .is('read_at', null)
     if (error) throw new Error(error.message)
     return this.loadAll()
   }

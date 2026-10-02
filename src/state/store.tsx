@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useReducer, useRef, useState } from 'react'
-import type { GalaxyState, Post, Signal, User } from '../types'
+import type { GalaxyState, Message, Post, Signal, User } from '../types'
 import { SUPERNOVA_TTL } from '../types'
 import { LocalBackend } from '../lib/backends/local'
 import { SupabaseBackend } from '../lib/backends/supabase'
@@ -92,7 +92,24 @@ interface Ctx {
   savedPosts: Post[]
   /** Recent signals other planets left on the current planet's posts. */
   transmissions: { signal: Signal; post: Post; user: User }[]
+  /** Every private thread the current planet is part of, newest activity first. */
+  threads: Thread[]
+  /** Messages between the current planet and one peer, oldest first. */
+  threadWith: (peerId: string) => Message[]
+  /** How many unread messages the current planet has, across all peers. */
+  unreadCount: number
+  /** Send a private message to another planet. Returns an error, or null. */
+  sendMessage: (to: string, text: string) => Promise<string | null>
+  /** Mark a peer's messages to the current planet as read. */
+  readThread: (peerId: string) => void
   resetGalaxy: () => void
+}
+
+/** One private thread, folded from the flat message list for the UI. */
+export interface Thread {
+  peer: User
+  last: Message
+  unread: number
 }
 
 const GalaxyContext = createContext<Ctx | null>(null)
@@ -381,6 +398,32 @@ export function GalaxyProvider({ children }: { children: React.ReactNode }) {
   const toggleFollow = useCallback((userId: string) => void run(() => backend.toggleFollow(userId)), [run])
   const toggleSave = useCallback((postId: string) => void run(() => backend.toggleSave(postId)), [run])
 
+  const sendMessage = useCallback(
+    async (to: string, text: string): Promise<string | null> => {
+      setBusy(true)
+      try {
+        const next = await backend.sendMessage(to, text)
+        if (mounted.current) {
+          dispatch({ type: 'hydrate', state: next })
+          setLastError(null)
+        }
+        sfx.ping()
+        return null
+      } catch (e) {
+        return message(e)
+      } finally {
+        if (mounted.current) setBusy(false)
+      }
+    },
+    [],
+  )
+
+  const readThread = useCallback((peerId: string) => {
+    void backend.readThread(peerId).catch(() => {
+      // a failed read-receipt is cosmetic; the thread is still on screen
+    })
+  }, [])
+
   const resetGalaxy = useCallback(() => {
     void run(() => backend.reset())
   }, [run])
@@ -417,6 +460,44 @@ export function GalaxyProvider({ children }: { children: React.ReactNode }) {
     }
     return out.sort((a, b) => b.signal.createdAt - a.signal.createdAt).slice(0, 40)
   }, [currentUser, state.posts, state.users])
+
+  /** Every message the current planet is part of, either direction. */
+  const myMessages = useMemo(() => {
+    if (!currentUser) return [] as Message[]
+    return Object.values(state.messages ?? {}).filter(
+      (m) => m.from === currentUser.id || m.to === currentUser.id,
+    )
+  }, [currentUser, state.messages])
+
+  const threadWith = useCallback(
+    (peerId: string) => {
+      if (!currentUser) return [] as Message[]
+      const me = currentUser.id
+      return myMessages
+        .filter((m) => (m.from === me && m.to === peerId) || (m.from === peerId && m.to === me))
+        .sort((a, b) => a.createdAt - b.createdAt)
+    },
+    [currentUser, myMessages],
+  )
+
+  const threads = useMemo<Thread[]>(() => {
+    if (!currentUser) return []
+    const me = currentUser.id
+    const byPeer = new Map<string, Thread>()
+    // myMessages is unordered, so fold in time order and let the last write win
+    for (const m of [...myMessages].sort((a, b) => a.createdAt - b.createdAt)) {
+      const peerId = m.from === me ? m.to : m.from
+      const peer = state.users[peerId]
+      if (!peer) continue
+      const existing = byPeer.get(peerId)
+      const unread =
+        (existing?.unread ?? 0) + (m.to === me && !m.readAt ? 1 : 0)
+      byPeer.set(peerId, { peer, last: m, unread })
+    }
+    return [...byPeer.values()].sort((a, b) => b.last.createdAt - a.last.createdAt)
+  }, [currentUser, myMessages, state.users])
+
+  const unreadCount = useMemo(() => threads.reduce((n, t) => n + t.unread, 0), [threads])
 
   const value: Ctx = {
     state,
@@ -460,6 +541,11 @@ export function GalaxyProvider({ children }: { children: React.ReactNode }) {
     following,
     savedPosts,
     transmissions,
+    threads,
+    threadWith,
+    unreadCount,
+    sendMessage,
+    readThread,
     resetGalaxy,
   }
 

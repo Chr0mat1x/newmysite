@@ -70,6 +70,13 @@ export interface Backend {
   addSignal(postId: string, text: string): Promise<GalaxyState>
   toggleFollow(userId: string): Promise<GalaxyState>
   toggleSave(postId: string): Promise<GalaxyState>
+  /**
+   * Send a private message to another planet. Demo planets have no account, so
+   * they can never be a recipient.
+   */
+  sendMessage(to: string, text: string): Promise<GalaxyState>
+  /** Mark every message the peer sent the caller as read. */
+  readThread(peerId: string): Promise<GalaxyState>
   /** Re-read the galaxy from the source. */
   refresh(): Promise<GalaxyState>
   /** Discard local state and rebuild — the offline "reset galaxy" affordance. */

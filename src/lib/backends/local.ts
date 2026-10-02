@@ -1,4 +1,4 @@
-import type { GalaxyState, Post, User } from '../../types'
+import type { GalaxyState, Message, Post, User } from '../../types'
 import { SUPERNOVA_THRESHOLD, SUPERNOVA_TTL } from '../../types'
 import { loadState, saveState, uid } from '../storage'
 import { buildSeedGalaxy, makeUser } from '../seed'
@@ -199,6 +199,24 @@ export class LocalBackend implements Backend {
   async toggleSave(postId: string) {
     this.require()
     return this.apply({ type: 'toggleSave', postId })
+  }
+
+  async sendMessage(to: string, text: string) {
+    const me = this.require()
+    const body = text.trim()
+    if (!body) throw new Error('a transmission needs words')
+    if (to === me.id) throw new Error('you cannot message your own planet')
+    const peer = this.state.users[to]
+    if (!peer) throw new Error('no such planet')
+    // Demo planets have no account behind them, so nothing could ever read it.
+    if (peer.mock) throw new Error(`${peer.name} is a demo planet — it cannot answer`)
+    const message: Message = { id: uid(), from: me.id, to, text: body, createdAt: Date.now(), readAt: null }
+    return this.apply({ type: 'addMessage', message })
+  }
+
+  async readThread(peerId: string) {
+    const me = this.require()
+    return this.apply({ type: 'readThread', userId: me.id, peerId })
   }
 
   async refresh() {

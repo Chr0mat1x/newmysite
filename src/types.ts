@@ -45,6 +45,27 @@ export interface GalaxyState {
   users: Record<string, User>
   posts: Record<string, Post>
   currentUserId: string | null
+  /**
+   * Direct messages, keyed by id. Stored flat rather than nested inside a
+   * conversation so a thread is just a filter — the same shape the `messages`
+   * table has, and the same reason `stars` is a join table.
+   */
+  messages?: Record<string, Message>
+}
+
+/**
+ * A private transmission between two planets. `from`/`to` are user ids; a thread
+ * is identified by the unordered pair, so both sides read the same history
+ * without a conversation row to keep in sync.
+ */
+export interface Message {
+  id: string
+  from: string
+  to: string
+  text: string
+  createdAt: number
+  /** set when the recipient has read it; undefined means unread */
+  readAt?: number | null
 }
 
 // ---------------------------------------------------------------------------
@@ -85,6 +106,15 @@ export interface SignalRow {
 export interface StarRow {
   satellite: string
   planet: string
+}
+
+export interface MessageRow {
+  id: string
+  sender: string
+  recipient: string
+  body: string
+  created_at: string
+  read_at: string | null
 }
 
 export const SUPERNOVA_THRESHOLD = 10

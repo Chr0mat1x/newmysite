@@ -117,6 +117,12 @@ export const sfx = {
     ping(783.99, 0.08, 0.8)
     setTimeout(() => ping(1174.66, 0.06, 0.9), 110)
   },
+  // a private message: softer and higher than a public signal, so the two are
+  // distinguishable with your eyes elsewhere
+  ping: () => {
+    ping(1174.66, 0.07, 0.7)
+    setTimeout(() => ping(1567.98, 0.045, 0.8), 70)
+  },
   supernova: () => {
     ;[523.25, 659.25, 783.99, 1046.5, 1318.5].forEach((f, i) =>
       setTimeout(() => ping(f, 0.14, 2.4, 'triangle'), i * 120),

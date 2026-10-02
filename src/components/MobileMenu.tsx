@@ -26,6 +26,7 @@ export function MobileMenu({
   onConsole,
   onSearch,
   onAccount,
+  onMessenger,
 }: {
   open: boolean
   onClose: () => void
@@ -36,8 +37,9 @@ export function MobileMenu({
   onConsole: (tab: 'transmissions' | 'constellation' | 'cargo') => void
   onSearch: () => void
   onAccount: () => void
+  onMessenger: () => void
 }) {
-  const { currentUser, userById, logout, resetGalaxy, transmissions, following, savedPosts } = useGalaxy()
+  const { currentUser, userById, logout, resetGalaxy, transmissions, following, savedPosts, unreadCount } = useGalaxy()
   const [confirmReset, setConfirmReset] = useState(false)
 
   return (
@@ -143,6 +145,16 @@ export function MobileMenu({
                   >
                     search
                     <span className="text-white/35">⌕</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      sfx.click()
+                      onMessenger()
+                    }}
+                    className="tap col-span-2 flex items-center justify-between rounded-xl border border-white/[0.08] bg-white/[0.02] px-3 py-2.5 font-mono text-[10px] uppercase tracking-[0.12em] text-white/60 active:bg-white/[0.06]"
+                  >
+                    messenger
+                    <span className="text-white/35">{unreadCount > 0 ? unreadCount : '✉'}</span>
                   </button>
                 </div>
               </div>

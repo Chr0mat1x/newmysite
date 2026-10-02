@@ -10,9 +10,10 @@ interface Props {
   userId: string | null
   onClose: () => void
   onCompose: () => void
+  onMessage: (userId: string) => void
 }
 
-export function OrbitView({ userId, onClose, onCompose }: Props) {
+export function OrbitView({ userId, onClose, onCompose, onMessage }: Props) {
   const { userById, postsOf, currentUser, updateProfile, toggleLike, toggleFollow, state } = useGalaxy()
   const user = userId ? userById(userId) : null
   const isMobile = useIsMobile()
@@ -250,6 +251,19 @@ export function OrbitView({ userId, onClose, onCompose }: Props) {
                   </>
                 )}
               </div>
+
+              {/* private message — only for planets that can actually answer */}
+              {!isMe && !user.mock && (
+                <button
+                  onClick={() => {
+                    sfx.click()
+                    onMessage(user.id)
+                  }}
+                  className="tap mt-2 w-full rounded-xl border border-white/12 bg-white/[0.04] py-2.5 font-display text-xs font-semibold tracking-wide text-white/80 transition-all hover:border-glow/50 hover:text-white active:scale-[0.98]"
+                >
+                  ✉ SEND A PRIVATE TRANSMISSION
+                </button>
+              )}
 
               {isMe && (
                 <button

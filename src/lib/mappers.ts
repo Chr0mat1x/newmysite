@@ -1,4 +1,4 @@
-import type { GalaxyState, PlanetRow, Post, SatelliteRow, Signal, SignalRow } from '../types'
+import type { GalaxyState, Message, MessageRow, PlanetRow, Post, SatelliteRow, Signal, SignalRow } from '../types'
 
 /** Postgres rows <-> the camelCase shapes the React tree already consumes. */
 
@@ -53,6 +53,17 @@ export function toPost(row: SatelliteRow, signals: Signal[], likes: string[]): P
   }
 }
 
+export function toMessage(row: MessageRow): Message {
+  return {
+    id: row.id,
+    from: row.sender,
+    to: row.recipient,
+    text: row.body,
+    createdAt: ts(row.created_at) || Date.now(),
+    readAt: row.read_at ? ts(row.read_at) : null,
+  }
+}
+
 /**
  * Folds the four remote tables into the single `GalaxyState` the app has always
  * used, so every component downstream keeps working unchanged.
@@ -63,6 +74,7 @@ export function buildState(
   signals: SignalRow[],
   stars: { satellite: string; planet: string }[],
   currentUserId: string | null,
+  messages: MessageRow[] = [],
 ): GalaxyState {
   const users: GalaxyState['users'] = {}
   for (const p of planets) users[p.id] = toUser(p)
@@ -86,5 +98,8 @@ export function buildState(
     posts[s.id] = toPost(s, signalsByPost.get(s.id) ?? [], likesByPost.get(s.id) ?? [])
   }
 
-  return { version: 1, users, posts, currentUserId }
+  const msgs: Record<string, Message> = {}
+  for (const m of messages) msgs[m.id] = toMessage(m)
+
+  return { version: 1, users, posts, currentUserId, messages: msgs }
 }

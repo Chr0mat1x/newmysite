@@ -58,11 +58,15 @@ export async function open({ mobile = false } = {}) {
     executablePath: CHROME,
     args: ['--no-sandbox', '--disable-dev-shm-usage'],
   })
-  const context = await browser.newContext(
-    mobile
+  const context = await browser.newContext({
+    ...(mobile
       ? { ...devices['iPhone 13'], isMobile: true, hasTouch: true }
-      : { viewport: { width: 1440, height: 900 } },
-  )
+      : { viewport: { width: 1440, height: 900 } }),
+    // Only set when a suite runs against the APK-parity harness, which serves
+    // the bundle over a self-signed https://localhost cert. Normal runs stay
+    // strict so a real certificate problem is never hidden.
+    ignoreHTTPSErrors: process.env.ALLOW_SELF_SIGNED === '1',
+  })
   const page = await context.newPage()
   // The first-visit onboarding overlay appears as soon as the galaxy mounts and
   // swallows pointer events. Tests are not about onboarding, so mark it seen

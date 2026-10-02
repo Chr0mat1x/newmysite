@@ -1,4 +1,4 @@
-import type { GalaxyState, Post, User } from '../types'
+import type { GalaxyState, Message, Post, User } from '../types'
 import { SUPERNOVA_THRESHOLD, SUPERNOVA_TTL } from '../types'
 
 export type Action =
@@ -15,6 +15,8 @@ export type Action =
   | { type: 'novaExpire' }
   | { type: 'toggleFollow'; userId: string }
   | { type: 'toggleSave'; postId: string }
+  | { type: 'addMessage'; message: Message }
+  | { type: 'readThread'; userId: string; peerId: string }
 
 /**
  * Pure state transitions, shared by the local (offline) backend and by the
@@ -71,10 +73,17 @@ export function reducer(state: GalaxyState, action: Action): GalaxyState {
           following: (u.following ?? []).filter((f) => f !== action.id),
         }
       }
+      // the planet's private threads go with it — a deleted world must not leave
+      // readable mail behind in somebody else's inbox
+      const messages: Record<string, Message> = {}
+      for (const [id, m] of Object.entries(state.messages ?? {})) {
+        if (m.from !== action.id && m.to !== action.id) messages[id] = m
+      }
       return {
         ...state,
         users,
         posts,
+        messages,
         currentUserId: state.currentUserId === action.id ? null : state.currentUserId,
       }
     }
@@ -152,6 +161,21 @@ export function reducer(state: GalaxyState, action: Action): GalaxyState {
           },
         },
       }
+    }
+    case 'addMessage':
+      return { ...state, messages: { ...(state.messages ?? {}), [action.message.id]: action.message } }
+    case 'readThread': {
+      // mark every message the peer sent me as read; anything I sent stays as-is
+      const messages = state.messages ?? {}
+      let changed = false
+      const next: Record<string, Message> = {}
+      for (const [id, m] of Object.entries(messages)) {
+        if (m.from === action.peerId && m.to === action.userId && !m.readAt) {
+          next[id] = { ...m, readAt: Date.now() }
+          changed = true
+        } else next[id] = m
+      }
+      return changed ? { ...state, messages: next } : state
     }
     default:
       return state

@@ -11,3 +11,10 @@ dist-ssr
 *.log
 .agent_tmp
 tools/.mail-relay-seen.json
+
+# Android/Capacitor build artifacts
+android/app/build
+android/build
+android/.gradle
+android/local.properties
+.env.android

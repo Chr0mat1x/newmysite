@@ -3,7 +3,7 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
-  "description": "ORBIT — a social network where every user is a planet and every post is a satellite.",
+  "description": "ORBIT \u2014 a social network where every user is a planet and every post is a satellite.",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "build": "tsc --noEmit && vite build",
@@ -13,7 +13,11 @@
     "test:supabase": "node tests/supabase.mjs",
     "test:mail": "node tests/mail.mjs",
     "relay:mail": "node tools/mail-relay.mjs",
-    "test:relay": "node tests/relay.mjs"
+    "test:relay": "node tests/relay.mjs",
+    "build:android": "vite build --mode android",
+    "android:sync": "npm run build:android && cap sync android",
+    "android:apk": "npm run android:sync && cd android && ./gradlew assembleDebug",
+    "android:apk:release": "npm run android:sync && cd android && ./gradlew assembleRelease"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.117.2",
@@ -22,6 +26,9 @@
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
+    "@capacitor/android": "^6.2.2",
+    "@capacitor/cli": "^6.2.2",
+    "@capacitor/core": "^6.2.2",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.1",

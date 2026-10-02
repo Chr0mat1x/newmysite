@@ -24,6 +24,7 @@ interface Props {
   onConsole: () => void
   onNova: () => void
   onRandom: () => void
+  onMessenger: () => void
 }
 
 /** Tiny subsequence matcher — "nv" hits "Nova", "orb" hits "orbit". */
@@ -45,7 +46,7 @@ function fuzzy(needle: string, hay: string) {
   return i === n.length ? score - h.length * 0.05 : -1
 }
 
-export function CommandPalette({ open, onClose, onVisit, onCompose, onConsole, onNova, onRandom }: Props) {
+export function CommandPalette({ open, onClose, onVisit, onCompose, onConsole, onNova, onRandom, onMessenger }: Props) {
   const { users, currentUser, state, userById } = useGalaxy()
   const [query, setQuery] = useState('')
   const [cursor, setCursor] = useState(0)
@@ -74,6 +75,7 @@ export function CommandPalette({ open, onClose, onVisit, onCompose, onConsole, o
       { id: 'act:me', kind: 'action', label: 'fly to my orbit', hint: 'home', run: () => currentUser && onVisit(currentUser.id) },
       { id: 'act:random', kind: 'action', label: 'fly somewhere random', hint: 'explore', run: onRandom },
       { id: 'act:console', kind: 'action', label: 'open signals console', hint: 'transmissions · constellation · cargo', run: onConsole },
+      { id: 'act:mail', kind: 'action', label: 'open messenger', hint: 'private transmissions', run: onMessenger },
       { id: 'act:nova', kind: 'action', label: 'open supernova feed', hint: 'galaxy-wide', run: onNova },
     ]
 
@@ -115,7 +117,7 @@ export function CommandPalette({ open, onClose, onVisit, onCompose, onConsole, o
       .sort((x, y) => y.score - x.score)
       .slice(0, 24)
     return scored.map((x) => x.e)
-  }, [query, users, state.posts, userById, currentUser, onVisit, onCompose, onConsole, onRandom])
+  }, [query, users, state.posts, userById, currentUser, onVisit, onCompose, onConsole, onRandom, onMessenger])
 
   useEffect(() => setCursor(0), [query])
 

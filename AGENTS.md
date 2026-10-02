@@ -10,6 +10,9 @@ post orbits them as a satellite. Monochrome space aesthetic.
 - `npm run build` — `tsc --noEmit && vite build`. Must stay green.
 - `npm run preview` — serve `dist/`.
 - `npm run relay:mail` — forward captured auth mail to a real inbox (see Mail).
+- `npm test`, `npm run test:supabase`, `npm run test:mail` — the browser suites
+  in `tests/` (see Verification).
+- `npm run android:apk` — build the debug APK (see Android).
 
 ## Stack
 
@@ -114,16 +117,40 @@ the non-seeded planets via the REST API with the service-role key, or
 - **Shortcuts** — arrows/WASD pan, `c` centre on me, `f` fly to first follow,
   Escape closes the topmost overlay (palette → console → composer → nova →
   menu → orbit panel).
+- **Messenger** (`components/Messenger.tsx`) — private one-to-one transmissions,
+  distinct from public *signals*. Reachable from the desktop footer (`messenger`),
+  the phone toolbar (`mail`), the navigator, ⌘K, and a "send a private
+  transmission" button on any real planet's orbit panel. Demo planets
+  (`user.mock`) deliberately offer no such button — there is nobody to answer.
+  Backed by the `messages` table (`20261002120000_messenger.sql`), RLS-scoped to
+  the two participants; the anon key reads zero rows. `store.tsx` exposes
+  `threads`, `threadWith`, `unreadCount`, `sendMessage`, `readThread`.
 - **Navigation invariant** — always use `goTo` in App, never raw `visit`:
   `goTo` also closes the console/menu so their backdrops cannot swallow the
   tap that opens the orbit panel. This was a real bug caught by the E2E suite.
 
 ## Verification
 
-No test runner is wired into the repo. Bug-hunting is done with throwaway
-`playwright-core` scripts (launch `/usr/bin/chromium` with
-`--no-sandbox --disable-dev-shm-usage`) that drive the dev server and inspect
-`localStorage`. Verify against both `http://localhost:12000/` and the work host.
+The suites live in `tests/` and run against a **live** server, driving
+`playwright-core` (`/usr/bin/chromium`, `--no-sandbox --disable-dev-shm-usage`):
+
+- `tests/core.mjs` (`npm test`) — offline/localStorage build: auth gate, planet
+  sprites, validation, mobile layout.
+- `tests/supabase.mjs` (`npm run test:supabase`) — the shared galaxy: signup,
+  posting, stars, signals, follow, re-login, the anonymous visitor path, account
+  settings, and `delete_me`.
+- `tests/mail.mjs` (`npm run test:mail`) — the full mail flow off the local
+  catcher (signup confirmation, recovery, email change).
+- `tests/messenger.mjs` — two real planets exchanging private transmissions, and
+  the privacy rule: the anon key must read zero `messages` rows.
+
+Pass `URL=https://<work-host>/` to point a suite at the work host; it defaults to
+`http://localhost:12000/`. `tests/harness.mjs` holds the shared helpers — read it
+before adding a suite. Because the galaxy only re-reads every 60s, a suite that
+creates a second planet must `page.reload()` the first before searching for it.
+
+`ALLOW_SELF_SIGNED=1` relaxes the browser's certificate check for the APK-parity
+harness (below); leave it off otherwise so a real cert problem is never hidden.
 
 Covered so far: mobile adaptation, canvas gestures, tap-to-open-orbit, supernova
 threshold crossing and clearing, signals, logout/login round-trip, reset,
@@ -132,11 +159,35 @@ inert post text, and the full email auth flow (signup, duplicate email, wrong
 password, unknown email, invalid format, short password, unique handles,
 demo-planet explore, link-email, mobile signup).
 
-Against a **live Supabase** the suite also covers signup to planet row, satellite
-creation and persistence, starring, follow, cargo, session restore on re-login,
-duplicate-email refusal, the anonymous visitor path, and mobile layout. The
-offline suite (`features.mjs`, `regress.mjs`) must stay green after any backend
-change — it is what proves the localStorage fallback still works.
+Assertions talk to Supabase directly where they can, so they verify rows actually
+landed rather than trusting the UI. Private `messages` are RLS-scoped, so those
+reads use the signed-in participant's token pulled from `localStorage`; a plain
+anon-key read is *expected* to return zero rows (that is the privacy check).
+
+## Android
+
+The APK is a Capacitor shell (`capacitor.config.ts`, `android/`) around the same
+React tree — there is no second implementation. `npm run android:apk` builds the
+debug APK to `android/app/build/outputs/apk/debug/app-debug.apk`.
+
+The one thing that differs from the web build is the backend URL: inside the
+WebView there is no dev server, so the relative `/sb` proxy the browser uses does
+not exist. `npm run build:android` therefore builds with `--mode android`, which
+loads `.env.android` (git-ignored, generated from `.env.local`) and bakes in an
+**absolute** Supabase URL.
+
+`androidScheme: 'https'` in `capacitor.config.ts` is load-bearing: it makes the
+WebView origin `https://localhost`, which the Supabase stack's CORS allows.
+`capacitor://localhost` does **not** get an `Access-Control-Allow-Origin` header,
+and the app would fail to link. Toolchain: JDK 21 plus the Android SDK
+(`platform-tools`, `platforms;android-34`, `build-tools;34.0.0`); `ANDROID_HOME`
+and `JAVA_HOME` must point at them.
+
+To verify the actual artifact rather than the dev server, serve `dist/` over
+`https://localhost` with an `/sb` proxy that does **not** follow redirects (GoTrue
+returns the session in the URL fragment, which a server-side redirect would drop)
+and run a suite against it with `ALLOW_SELF_SIGNED=1`. That path was used to run
+the messenger suite green against the exact bundle shipped in the APK.
 
 ### Backend gotchas
 
@@ -281,6 +332,14 @@ desktop footer (`account`) and the mobile navigator:
 `minimum_password_length = 8` in `config.toml` now matches `PASSWORD_MIN`, so the
 API rejects what the form would. The resend/`forgot` buttons sit on a 60s
 cooldown (`RESEND_COOLDOWN`) to hold off the auth rate limiter.
+
+The shared galaxy is currently **wiped of every registered account** (26 auth
+users, including the email-registered ones, plus their planets and all content);
+only the 12 seeded demo planets remain, so a fresh visitor still lands somewhere
+populated. Signups start from zero again.
+
+An Android APK exists (see Android) and the messenger is verified against the
+exact bundle it ships.
 
 Without those vars the offline `LocalBackend` still applies, and there `src/lib/auth.ts`
 hashes passwords in the browser — demo-grade, not real security. The offline

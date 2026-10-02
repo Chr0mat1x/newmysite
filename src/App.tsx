@@ -14,6 +14,7 @@ import { SignalsConsole } from './components/SignalsConsole'
 import { Toasts, type Toast } from './components/Toasts'
 import { Onboarding } from './components/Onboarding'
 import { AccountSettings } from './components/AccountSettings'
+import { Messenger } from './components/Messenger'
 import { PlanetBadge } from './components/PlanetBadge'
 import { layoutGalaxy } from './engine/layout'
 import type { RenderStats } from './engine/GalaxyCanvas'
@@ -21,7 +22,7 @@ import { useIsMobile } from './lib/useMedia'
 import { isMuted, setMuted, startAmbient, resumeAudio, sfx } from './lib/audio'
 
 function Orbit() {
-  const { currentUser, users, state, logout, resetGalaxy, supernovas, userById, following, savedPosts, transmissions, mode, linkStatus, busy, lastError, clearLastError, initialFocus, clearInitialFocus } =
+  const { currentUser, users, state, logout, resetGalaxy, supernovas, userById, following, savedPosts, transmissions, unreadCount, mode, linkStatus, busy, lastError, clearLastError, initialFocus, clearInitialFocus } =
     useGalaxy()
   const handleRef = useRef<GalaxyHandle>(null)
   const [selected, setSelected] = useState<string | null>(null)
@@ -37,6 +38,8 @@ function Orbit() {
   const [muted, setMute] = useState(isMuted())
   const [menuOpen, setMenuOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [messengerOpen, setMessengerOpen] = useState(false)
+  const [messengerPeer, setMessengerPeer] = useState<string | null>(null)
   const isMobile = useIsMobile()
   const novaCount = useRef<number | null>(null)
 
@@ -203,6 +206,12 @@ function Orbit() {
     sfx.click()
     setConsoleTab(tab)
     setConsoleOpen(true)
+  }, [])
+
+  /** Open the messenger, optionally straight onto a peer's thread. */
+  const openMessenger = useCallback((peerId?: string) => {
+    setMessengerPeer(peerId ?? null)
+    setMessengerOpen(true)
   }, [])
 
   // A visitor picked a demo planet — fly them to it once the galaxy is loaded.
@@ -460,6 +469,21 @@ function Orbit() {
               <span className="text-base leading-none">⇢</span>
               <span className="mt-1">fly</span>
             </button>
+            <button
+              onClick={() => {
+                sfx.click()
+                openMessenger()
+              }}
+              className="tap relative flex flex-1 flex-col items-center justify-center rounded-xl py-1.5 font-mono text-[9px] uppercase tracking-[0.14em] text-white/55 transition-colors active:bg-white/10 active:text-white"
+            >
+              <span className="text-base leading-none">✉</span>
+              <span className="mt-1">mail</span>
+              {unreadCount > 0 && (
+                <span className="absolute right-2 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-white px-1 font-mono text-[9px] font-bold text-black">
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              )}
+            </button>
             <motion.button
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
@@ -499,6 +523,18 @@ function Orbit() {
           className="pointer-events-auto rounded-full border border-white/12 bg-black/50 px-4 py-2.5 font-mono text-[10px] uppercase tracking-[0.18em] text-white/60 backdrop-blur-xl transition-colors hover:border-glow/50 hover:text-white"
         >
           ⇢ fly somewhere random
+        </button>
+        <button
+          onClick={() => openMessenger()}
+          onMouseEnter={() => sfx.hover()}
+          className="pointer-events-auto relative rounded-full border border-white/12 bg-black/50 px-4 py-2.5 font-mono text-[10px] uppercase tracking-[0.18em] text-white/60 backdrop-blur-xl transition-colors hover:border-glow/50 hover:text-white"
+        >
+          ✉ messenger
+          {unreadCount > 0 && (
+            <span className="absolute -right-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-white px-1 font-mono text-[9px] font-bold text-black">
+              {unreadCount > 9 ? '9+' : unreadCount}
+            </span>
+          )}
         </button>
       </div>
 
@@ -540,7 +576,7 @@ function Orbit() {
       </div>
 
       {/* ---------- panels ---------- */}
-      <OrbitView userId={selected} onClose={closeIfSettled} onCompose={() => setComposerOpen(true)} />
+      <OrbitView userId={selected} onClose={closeIfSettled} onCompose={() => setComposerOpen(true)} onMessage={openMessenger} />
       <Composer open={composerOpen} onClose={() => setComposerOpen(false)} />
       <SupernovaFeed open={novaOpen} onClose={() => setNovaOpen(false)} onVisit={goTo} />
       <SignalsConsole
@@ -557,6 +593,7 @@ function Orbit() {
         onConsole={() => openConsole('transmissions')}
         onNova={() => setNovaOpen(true)}
         onRandom={flyRandom}
+        onMessenger={() => openMessenger()}
       />
       <MobileMenu
         open={menuOpen}
@@ -577,8 +614,18 @@ function Orbit() {
           setMenuOpen(false)
           setSettingsOpen(true)
         }}
+        onMessenger={() => {
+          setMenuOpen(false)
+          openMessenger()
+        }}
       />
       <AccountSettings open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      <Messenger
+        open={messengerOpen}
+        onClose={() => setMessengerOpen(false)}
+        initialPeer={messengerPeer}
+        onVisit={goTo}
+      />
       <Toasts toasts={toasts} onDismiss={(id) => setToasts((p) => p.filter((t) => t.id !== id))} />
       <Onboarding
         open={onboarding}
