@@ -1,4 +1,4 @@
-import type { GalaxyState, Message, Post, User } from '../types'
+import type { Cluster, GalaxyState, Message, Post, User } from '../types'
 import { SUPERNOVA_THRESHOLD, SUPERNOVA_TTL } from '../types'
 
 export type Action =
@@ -17,6 +17,10 @@ export type Action =
   | { type: 'toggleSave'; postId: string }
   | { type: 'addMessage'; message: Message }
   | { type: 'readThread'; userId: string; peerId: string }
+  | { type: 'addCluster'; cluster: Cluster }
+  | { type: 'addClusterMessage'; message: Message }
+  | { type: 'readCluster'; userId: string; clusterId: string }
+  | { type: 'leaveCluster'; userId: string; clusterId: string }
 
 /**
  * Pure state transitions, shared by the local (offline) backend and by the
@@ -79,11 +83,24 @@ export function reducer(state: GalaxyState, action: Action): GalaxyState {
       for (const [id, m] of Object.entries(state.messages ?? {})) {
         if (m.from !== action.id && m.to !== action.id) messages[id] = m
       }
+      // clusters the planet created go entirely; from the others it is only
+      // removed as a member, so the remaining members keep their conversation
+      const clusters: Record<string, Cluster> = {}
+      for (const [id, c] of Object.entries(state.clusters ?? {})) {
+        if (c.creator === action.id) continue
+        clusters[id] = c.members.includes(action.id)
+          ? { ...c, members: c.members.filter((m) => m !== action.id) }
+          : c
+      }
+      for (const [id, m] of Object.entries(messages)) {
+        if (m.clusterId && !clusters[m.clusterId]) delete messages[id]
+      }
       return {
         ...state,
         users,
         posts,
         messages,
+        clusters,
         currentUserId: state.currentUserId === action.id ? null : state.currentUserId,
       }
     }
@@ -164,6 +181,36 @@ export function reducer(state: GalaxyState, action: Action): GalaxyState {
     }
     case 'addMessage':
       return { ...state, messages: { ...(state.messages ?? {}), [action.message.id]: action.message } }
+    case 'addCluster':
+      return { ...state, clusters: { ...(state.clusters ?? {}), [action.cluster.id]: action.cluster } }
+    case 'addClusterMessage':
+      return { ...state, messages: { ...(state.messages ?? {}), [action.message.id]: action.message } }
+    case 'readCluster': {
+      const messages = state.messages ?? {}
+      let changed = false
+      const next: Record<string, Message> = {}
+      for (const [id, m] of Object.entries(messages)) {
+        // cluster lines have many readers, so "read" means "I am not the author"
+        if (m.clusterId === action.clusterId && m.from !== action.userId && !m.readAt) {
+          next[id] = { ...m, readAt: Date.now() }
+          changed = true
+        } else next[id] = m
+      }
+      return changed ? { ...state, messages: next } : state
+    }
+    case 'leaveCluster': {
+      const c = state.clusters?.[action.clusterId]
+      if (!c || !c.members.includes(action.userId)) return state
+      const messages: Record<string, Message> = {}
+      for (const [id, m] of Object.entries(state.messages ?? {})) {
+        if (m.clusterId !== action.clusterId || m.from !== action.userId) messages[id] = m
+      }
+      return {
+        ...state,
+        messages,
+        clusters: { ...state.clusters, [action.clusterId]: { ...c, members: c.members.filter((m) => m !== action.userId) } },
+      }
+    }
     case 'readThread': {
       // mark every message the peer sent me as read; anything I sent stays as-is
       const messages = state.messages ?? {}

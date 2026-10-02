@@ -14,7 +14,8 @@ post orbits them as a satellite. Monochrome space aesthetic.
   in `tests/` (see Verification).
 - `npm run android:apk` — build the debug APK (see Android).
 - `npm run build:pages` — offline bundle for GitHub Pages (`VITE_BASE` sets the subpath).
-- `npm run deploy:pages` — build and publish the demo to the live Pages branch (see Hosting).
+- `npm run build:online` — Pages bundle **with** a live Supabase backend from `.env.online` (accounts + email confirmation).
+- `npm run deploy:pages` — build and publish to the live Pages branch. Offline demo by default; `ORBIT_ONLINE=1 npm run deploy:pages` ships the online build (see Hosting).
 
 ## Stack
 
@@ -119,14 +120,29 @@ the non-seeded planets via the REST API with the service-role key, or
 - **Shortcuts** — arrows/WASD pan, `c` centre on me, `f` fly to first follow,
   Escape closes the topmost overlay (palette → console → composer → nova →
   menu → orbit panel).
-- **Messenger** (`components/Messenger.tsx`) — private one-to-one transmissions,
-  distinct from public *signals*. Reachable from the desktop footer (`messenger`),
-  the phone toolbar (`mail`), the navigator, ⌘K, and a "send a private
-  transmission" button on any real planet's orbit panel. Demo planets
+- **Messenger** (`components/Messenger.tsx`) — private transmissions, distinct
+  from public *signals*. Two shapes share one panel: a **direct thread** (one
+  peer) and a **cluster** (a named group). Reachable from the desktop footer
+  (`messenger`), the phone toolbar (`mail`), the navigator, ⌘K, and a "send a
+  private transmission" button on any real planet's orbit panel. Demo planets
   (`user.mock`) deliberately offer no such button — there is nobody to answer.
-  Backed by the `messages` table (`20261002120000_messenger.sql`), RLS-scoped to
-  the two participants; the anon key reads zero rows. `store.tsx` exposes
-  `threads`, `threadWith`, `unreadCount`, `sendMessage`, `readThread`.
+  Backed by `messages` (`20261002120000_messenger.sql`) and `clusters` +
+  `cluster_members` (`20261003120000_clusters.sql`), all RLS-scoped; the anon key
+  reads zero rows and cannot even call the membership helper.
+- **Finding planets** — the messenger's search box looks up real planets by
+  `@handle` or display name through the `planet_directory` RPC. Demo planets are
+  returned flagged so the picker can grey them out (they have no reader). The
+  lookup is debounced 250 ms and `execute` is revoked from `anon`, so the
+  directory is only reachable by a signed-in planet.
+- **Clusters** — created from the clusters tab: name the group, search and pick
+  members, create. The creator is always a member (the `create_cluster` RPC
+  inserts membership server-side, because RLS would otherwise refuse the first
+  row). Open a cluster to read its lines, leave it, or tap a member chip to fly
+  to that planet. `store.tsx` exposes `clusters`, `clusterMessages`,
+  `clusterUnreadCount`, `searchPlanets`, `createCluster`, `sendClusterMessage`,
+  `readCluster`, `leaveCluster` alongside the direct-thread API. Direct and
+  cluster lines live in the same `messages` table: a cluster line has `cluster`
+  set and `recipient` null, a direct line the reverse, and `mappers.ts` maps both.
 - **Navigation invariant** — always use `goTo` in App, never raw `visit`:
   `goTo` also closes the console/menu so their backdrops cannot swallow the
   tap that opens the orbit panel. This was a real bug caught by the E2E suite.
@@ -143,8 +159,13 @@ The suites live in `tests/` and run against a **live** server, driving
   settings, and `delete_me`.
 - `tests/mail.mjs` (`npm run test:mail`) — the full mail flow off the local
   catcher (signup confirmation, recovery, email change).
-- `tests/messenger.mjs` — two real planets exchanging private transmissions, and
-  the privacy rule: the anon key must read zero `messages` rows.
+- `tests/messenger.mjs` (`npm run test:messenger`) — two real planets exchanging
+  private transmissions, and the privacy rule: the anon key must read zero
+  `messages` rows.
+- `tests/clusters.mjs` (`npm run test:clusters`) — three planets: search the
+  directory by handle and by name, form a cluster, exchange lines, and confirm a
+  non-member sees neither the cluster nor its lines. Also checks the anon key
+  cannot call `planet_directory` or read `clusters`.
 
 Pass `URL=https://<work-host>/` to point a suite at the work host; it defaults to
 `http://localhost:12000/`. `tests/harness.mjs` holds the shared helpers — read it
@@ -372,5 +393,24 @@ The hosted demo is deliberately the **offline** build. `.env.pages` blanks the
 backend vars (Vite loads `.env.<mode>` after `.env.local`), which both keeps the
 shared-galaxy URL and anon key out of a public bundle and makes the demo
 independent of any server. `.env.android` is blank for the same reason: the
-released APK runs on-device and survives the sandbox. Point either file at a
-real Supabase project to ship the shared galaxy instead.
+released APK runs on-device and survives the sandbox.
+
+### Email registration on the hosted site
+
+Accounts and email confirmation need a **server that outlives the sandbox**, so
+the offline Pages build cannot provide them — it has no backend at all. To turn
+them on for `chr0mat1x.github.io/orbit/`:
+
+1. Create a free Supabase project and push the migrations:
+   `npx supabase link --project-ref <ref> && npx supabase db push`.
+   Set the project's Auth URL config to the Pages origin so confirmation links
+   point there (Site URL + `https://chr0mat1x.github.io/orbit/` in Redirect URLs).
+2. `cp .env.online.example .env.online` and fill in the project URL + anon key.
+   The anon key is safe in a web bundle — RLS is the real guard — but keeping it
+   out of the repo keeps the project ref private.
+3. `ORBIT_ONLINE=1 npm run deploy:pages`.
+
+The online build bakes an **absolute** Supabase URL, so it never relies on the
+dev-server `/sb` proxy. Without a hosted project the main site stays on the
+offline demo; `.env.online` is gitignored, so this step is the only thing that
+switches it over.

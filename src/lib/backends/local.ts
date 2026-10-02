@@ -1,4 +1,4 @@
-import type { GalaxyState, Message, Post, User } from '../../types'
+import type { Cluster, GalaxyState, Message, Post, User } from '../../types'
 import { SUPERNOVA_THRESHOLD, SUPERNOVA_TTL } from '../../types'
 import { loadState, saveState, uid } from '../storage'
 import { buildSeedGalaxy, makeUser } from '../seed'
@@ -217,6 +217,53 @@ export class LocalBackend implements Backend {
   async readThread(peerId: string) {
     const me = this.require()
     return this.apply({ type: 'readThread', userId: me.id, peerId })
+  }
+
+  /** Offline search runs over the planets already in this browser's galaxy. */
+  async searchPlanets(term: string) {
+    this.require()
+    const q = term.trim().toLowerCase()
+    if (!q) return []
+    return Object.values(this.state.users)
+      .filter((u) => u.handle.toLowerCase().includes(q) || u.name.toLowerCase().includes(q))
+      .sort((a, b) => {
+        const exact = (u: User) => (u.handle.toLowerCase() === q ? 0 : u.handle.toLowerCase().startsWith(q) ? 1 : 2)
+        return exact(a) - exact(b) || a.handle.localeCompare(b.handle)
+      })
+      .slice(0, 20)
+  }
+
+  async createCluster(name: string, memberIds: string[]) {
+    const me = this.require()
+    const label = name.trim()
+    if (!label) throw new Error('a cluster needs a name')
+    // demo planets cannot read, so seating one would create a silent audience
+    const members = [me.id, ...memberIds].filter((id, i, all) => all.indexOf(id) === i)
+    const guests = members.filter((id) => this.state.users[id]?.mock)
+    if (guests.length) throw new Error('demo planets cannot join a cluster')
+    const cluster: Cluster = { id: uid(), name: label.slice(0, 60), creator: me.id, members, createdAt: Date.now() }
+    return { state: this.apply({ type: 'addCluster', cluster }), clusterId: cluster.id }
+  }
+
+  async sendClusterMessage(clusterId: string, text: string) {
+    const me = this.require()
+    const body = text.trim()
+    if (!body) throw new Error('a transmission needs words')
+    const cluster = this.state.clusters?.[clusterId]
+    if (!cluster) throw new Error('no such cluster')
+    if (!cluster.members.includes(me.id)) throw new Error('you are not in this cluster')
+    const message: Message = { id: uid(), from: me.id, clusterId, text: body, createdAt: Date.now(), readAt: null }
+    return this.apply({ type: 'addClusterMessage', message })
+  }
+
+  async readCluster(clusterId: string) {
+    const me = this.require()
+    return this.apply({ type: 'readCluster', userId: me.id, clusterId })
+  }
+
+  async leaveCluster(clusterId: string) {
+    const me = this.require()
+    return this.apply({ type: 'leaveCluster', userId: me.id, clusterId })
   }
 
   async refresh() {

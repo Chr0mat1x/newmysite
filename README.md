@@ -16,9 +16,13 @@ seen. The brighter a satellite, the more it resonated. Ten likes and a post deto
   APK, open it on the phone, allow installation from unknown sources.
 - **Source:** https://github.com/Chr0mat1x/newmysite
 
-Both hosted builds are intentionally the offline one: sign up, post, react, and fly through the
-galaxy entirely on your device, with your galaxy saved to `localStorage`. The shared
-(multi-user) galaxy runs only where a Supabase backend is configured — see *Running* below.
+The hosted demo is intentionally the offline build: sign up, post, react, message, and fly
+through the galaxy entirely on your device, with your galaxy saved to `localStorage`.
+
+Accounts with **email confirmation** and the shared (multi-user) galaxy need a Supabase
+backend that outlives any preview host. The code is ready for it — set `VITE_SUPABASE_URL`
+and `VITE_SUPABASE_ANON_KEY` (see `.env.online.example`) and build with `npm run build:online`.
+Until that project exists, the main site stays on the offline demo. See *Running* below.
 
 ---
 
@@ -69,14 +73,26 @@ Set `PORT=12000 npm run dev` to pin the port.
 | Visit a planet | click it on the canvas, or click its node in the mini-map |
 | Fly home | `C`, or your name in the top bar |
 | Launch a satellite | `+ SATELLITE`, or `N` |
+| Open the messenger | the `messenger` / `mail` button, or `⌘K` |
 | Close any overlay | `Escape` |
-| Sign in | pick a handle and a display name (no password — this is an MVP) |
+| Sign in | display name, handle, email and password — email confirmation required |
 
 Planets render procedurally from the user's name: ring system, surface texture, luminance, and glow
 are all derived from a stable hash, so the same handle always produces the same world. ORBIT is
 strictly monochrome, so a planet's identity comes from its **brightness and texture** rather than
 its colour — obsidian worlds and bone-white ones sit side by side on the same black void. On the
 launch screen you can pick which of eight worlds your seed resolves to.
+
+### Messenger
+
+Private **transmissions** sit apart from public *signals*. Two shapes share one panel:
+
+- **Direct thread** — message one planet. Search the galaxy by `@handle` or name to find them.
+- **Cluster** — a named group. Search and pick members, create, and everyone in it sees the lines.
+
+Open the messenger from the footer (`messenger`), the phone toolbar (`mail`), the navigator, or
+`⌘K`. Demo planets are greyed out in search — they have no reader behind them. Opening a
+conversation clears its unread badge; the toolbar badge counts direct and cluster unread together.
 
 ### Supernovae
 
@@ -137,6 +153,18 @@ set the two env vars in your host (Vercel/Netlify). Enable **anonymous sign-ins*
 in Auth settings: ORBIT uses them for the "explore a demo planet" visitor path,
 where a visitor gets a throwaway planet they can later attach an email to.
 
+To host ORBIT on **GitHub Pages** with accounts and email confirmation, use the
+online build instead of the offline demo:
+
+```bash
+cp .env.online.example .env.online   # fill in the hosted project URL + anon key
+ORBIT_ONLINE=1 npm run deploy:pages  # builds build:online and pushes to /orbit/
+```
+
+Email confirmation links point wherever the Supabase project's **Site URL** is
+set, so set that (and the Redirect URLs) to the Pages origin before deploying.
+`.env.online` is gitignored; without it the main site stays on the offline demo.
+
 ---
 
 ## Project structure
@@ -182,8 +210,9 @@ supabase/
 
 ## Backend model
 
-Five tables: `planets`, `satellites`, `signals`, `stars` (likes) and nothing
-else — follows and bookmarks are string arrays on the planet row.
+Tables: `planets`, `satellites`, `signals`, `stars` (likes), plus `messages`,
+`clusters` and `cluster_members` for the messenger — follows and bookmarks are
+string arrays on the planet row.
 
 - **Supernovae are a database concern.** A trigger on `stars` flips
   `satellites.supernova_at` when the 10th star lands, so the threshold cannot be
@@ -191,7 +220,12 @@ else — follows and bookmarks are string arrays on the planet row.
   nova after 24 hours.
 - **RLS everywhere.** Reads are public; writes are scoped to `auth.uid()`.
   A planet can only edit its own row, and a star can only be inserted with
-  `planet = auth.uid()`.
+  `planet = auth.uid()`. Direct messages and clusters are the exception — only
+  the participants (or cluster members) can read them, and the public anon key
+  reads zero rows.
+- **Groups are created server-side.** A cluster's first membership row would be
+  refused by RLS (the creator is not yet a member), so `create_cluster` inserts
+  the cluster and its members in one call, and only signed-in planets may run it.
 - **Visitors are anonymous auth users.** The signup trigger gives them a real
   planet (from the metadata passed at sign-in), so they can post and react
   without an account and can upgrade later.

@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useReducer, useRef, useState } from 'react'
-import type { GalaxyState, Message, Post, Signal, User } from '../types'
+import type { Cluster, GalaxyState, Message, Post, Signal, User } from '../types'
 import { SUPERNOVA_TTL } from '../types'
 import { LocalBackend } from '../lib/backends/local'
 import { SupabaseBackend } from '../lib/backends/supabase'
@@ -102,6 +102,22 @@ interface Ctx {
   sendMessage: (to: string, text: string) => Promise<string | null>
   /** Mark a peer's messages to the current planet as read. */
   readThread: (peerId: string) => void
+  /** Every cluster the current planet belongs to, newest activity first. */
+  clusters: ClusterThread[]
+  /** Lines in one cluster, oldest first. */
+  clusterMessages: (clusterId: string) => Message[]
+  /** How many unread cluster lines the current planet has, across all clusters. */
+  clusterUnreadCount: number
+  /** Find planets by @handle or name. Resolves to an empty list on failure. */
+  searchPlanets: (term: string) => Promise<User[]>
+  /** Create a group conversation. Resolves with the new cluster's id, or an error. */
+  createCluster: (name: string, memberIds: string[]) => Promise<{ error: string | null; clusterId: string | null }>
+  /** Send a line into a cluster. Returns an error, or null. */
+  sendClusterMessage: (clusterId: string, text: string) => Promise<string | null>
+  /** Mark a cluster's other members' lines as read. */
+  readCluster: (clusterId: string) => void
+  /** Leave a cluster. Returns an error, or null. */
+  leaveCluster: (clusterId: string) => Promise<string | null>
   resetGalaxy: () => void
 }
 
@@ -110,6 +126,14 @@ export interface Thread {
   peer: User
   last: Message
   unread: number
+}
+
+/** One group conversation, folded from the flat message list for the UI. */
+export interface ClusterThread {
+  cluster: Cluster
+  last: Message | null
+  unread: number
+  members: User[]
 }
 
 const GalaxyContext = createContext<Ctx | null>(null)
@@ -461,11 +485,11 @@ export function GalaxyProvider({ children }: { children: React.ReactNode }) {
     return out.sort((a, b) => b.signal.createdAt - a.signal.createdAt).slice(0, 40)
   }, [currentUser, state.posts, state.users])
 
-  /** Every message the current planet is part of, either direction. */
+  /** Every direct message the current planet is part of, either direction. */
   const myMessages = useMemo(() => {
     if (!currentUser) return [] as Message[]
     return Object.values(state.messages ?? {}).filter(
-      (m) => m.from === currentUser.id || m.to === currentUser.id,
+      (m) => !m.clusterId && (m.from === currentUser.id || m.to === currentUser.id),
     )
   }, [currentUser, state.messages])
 
@@ -487,6 +511,7 @@ export function GalaxyProvider({ children }: { children: React.ReactNode }) {
     // myMessages is unordered, so fold in time order and let the last write win
     for (const m of [...myMessages].sort((a, b) => a.createdAt - b.createdAt)) {
       const peerId = m.from === me ? m.to : m.from
+      if (!peerId) continue
       const peer = state.users[peerId]
       if (!peer) continue
       const existing = byPeer.get(peerId)
@@ -498,6 +523,107 @@ export function GalaxyProvider({ children }: { children: React.ReactNode }) {
   }, [currentUser, myMessages, state.users])
 
   const unreadCount = useMemo(() => threads.reduce((n, t) => n + t.unread, 0), [threads])
+
+  /** Every cluster line the current planet can see, either direction. */
+  const myClusterMessages = useMemo(() => {
+    if (!currentUser) return [] as Message[]
+    return Object.values(state.messages ?? {}).filter((m) => !!m.clusterId)
+  }, [currentUser, state.messages])
+
+  const clusterMessages = useCallback(
+    (clusterId: string) =>
+      myClusterMessages.filter((m) => m.clusterId === clusterId).sort((a, b) => a.createdAt - b.createdAt),
+    [myClusterMessages],
+  )
+
+  const clusters = useMemo<ClusterThread[]>(() => {
+    if (!currentUser) return []
+    const me = currentUser.id
+    const mine = Object.values(state.clusters ?? {}).filter((c) => c.members.includes(me))
+    return mine
+      .map((cluster) => {
+        const lines = myClusterMessages
+          .filter((m) => m.clusterId === cluster.id)
+          .sort((a, b) => a.createdAt - b.createdAt)
+        const last = lines[lines.length - 1] ?? null
+        const unread = lines.filter((m) => m.from !== me && !m.readAt).length
+        const members = cluster.members
+          .map((id) => state.users[id])
+          .filter((u): u is User => !!u)
+        return { cluster, last, unread, members }
+      })
+      .sort((a, b) => (b.last?.createdAt ?? b.cluster.createdAt) - (a.last?.createdAt ?? a.cluster.createdAt))
+  }, [currentUser, myClusterMessages, state.clusters, state.users])
+
+  const clusterUnreadCount = useMemo(() => clusters.reduce((n, c) => n + c.unread, 0), [clusters])
+
+  const searchPlanets = useCallback(async (term: string): Promise<User[]> => {
+    try {
+      return await backend.searchPlanets(term)
+    } catch {
+      // a failed lookup is not worth an error toast — the picker just stays empty
+      return []
+    }
+  }, [])
+
+  const createCluster = useCallback(
+    async (name: string, memberIds: string[]): Promise<{ error: string | null; clusterId: string | null }> => {
+      setBusy(true)
+      try {
+        const { state: next, clusterId } = await backend.createCluster(name, memberIds)
+        if (mounted.current) {
+          dispatch({ type: 'hydrate', state: next })
+          setLastError(null)
+        }
+        sfx.launch()
+        return { error: null, clusterId }
+      } catch (e) {
+        return { error: message(e), clusterId: null }
+      } finally {
+        if (mounted.current) setBusy(false)
+      }
+    },
+    [],
+  )
+
+  const sendClusterMessage = useCallback(async (clusterId: string, text: string): Promise<string | null> => {
+    setBusy(true)
+    try {
+      const next = await backend.sendClusterMessage(clusterId, text)
+      if (mounted.current) {
+        dispatch({ type: 'hydrate', state: next })
+        setLastError(null)
+      }
+      sfx.ping()
+      return null
+    } catch (e) {
+      return message(e)
+    } finally {
+      if (mounted.current) setBusy(false)
+    }
+  }, [])
+
+  const readCluster = useCallback((clusterId: string) => {
+    void backend.readCluster(clusterId).catch(() => {
+      // a failed read-receipt is cosmetic; the cluster is still on screen
+    })
+  }, [])
+
+  const leaveCluster = useCallback(async (clusterId: string): Promise<string | null> => {
+    setBusy(true)
+    try {
+      const next = await backend.leaveCluster(clusterId)
+      if (mounted.current) {
+        dispatch({ type: 'hydrate', state: next })
+        setLastError(null)
+      }
+      return null
+    } catch (e) {
+      return message(e)
+    } finally {
+      if (mounted.current) setBusy(false)
+    }
+  }, [])
 
   const value: Ctx = {
     state,
@@ -546,6 +672,14 @@ export function GalaxyProvider({ children }: { children: React.ReactNode }) {
     unreadCount,
     sendMessage,
     readThread,
+    clusters,
+    clusterMessages,
+    clusterUnreadCount,
+    searchPlanets,
+    createCluster,
+    sendClusterMessage,
+    readCluster,
+    leaveCluster,
     resetGalaxy,
   }
 

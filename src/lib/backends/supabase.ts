@@ -1,6 +1,17 @@
-import type { GalaxyState, MessageRow, PlanetRow, SatelliteRow, SignalRow, StarRow } from '../../types'
+import type {
+  ClusterMemberRow,
+  ClusterRow,
+  DirectoryRow,
+  GalaxyState,
+  MessageRow,
+  PlanetRow,
+  SatelliteRow,
+  SignalRow,
+  StarRow,
+  User,
+} from '../../types'
 import { supabase } from '../supabase'
-import { buildState } from '../mappers'
+import { buildState, toUser } from '../mappers'
 import { planetSeed } from '../seed'
 import { handleFromIdentity, normalizeEmail } from '../auth'
 import type { Backend, SignUpResult } from './types'
@@ -30,17 +41,19 @@ export class SupabaseBackend implements Backend {
   }
 
   private async loadAll(): Promise<GalaxyState> {
-    const [planets, satellites, signals, stars, messages] = await Promise.all([
+    const signedIn = !!this.currentUserId
+    const [planets, satellites, signals, stars, messages, clusters, members] = await Promise.all([
       this.client.from('planets').select('*'),
       this.client.from('satellites').select('*'),
       this.client.from('signals').select('*'),
       this.client.from('stars').select('*'),
-      // RLS already narrows this to the caller's own threads, so no filter here
-      this.currentUserId
-        ? this.client.from('messages').select('*')
-        : Promise.resolve({ data: [], error: null }),
+      // RLS already narrows these to the caller's own threads, so no filter here
+      signedIn ? this.client.from('messages').select('*') : Promise.resolve({ data: [], error: null }),
+      signedIn ? this.client.from('clusters').select('*') : Promise.resolve({ data: [], error: null }),
+      signedIn ? this.client.from('cluster_members').select('*') : Promise.resolve({ data: [], error: null }),
     ])
-    const err = planets.error || satellites.error || signals.error || stars.error || messages.error
+    const err =
+      planets.error || satellites.error || signals.error || stars.error || messages.error || clusters.error || members.error
     if (err) throw new Error(err.message)
     return buildState(
       (planets.data ?? []) as PlanetRow[],
@@ -49,6 +62,8 @@ export class SupabaseBackend implements Backend {
       (stars.data ?? []) as StarRow[],
       this.currentUserId,
       (messages.data ?? []) as MessageRow[],
+      (clusters.data ?? []) as ClusterRow[],
+      (members.data ?? []) as ClusterMemberRow[],
     )
   }
 
@@ -330,6 +345,92 @@ export class SupabaseBackend implements Backend {
       .eq('sender', peerId)
       .eq('recipient', me)
       .is('read_at', null)
+    if (error) throw new Error(error.message)
+    return this.loadAll()
+  }
+
+  /** Search planets by @handle or name through the directory RPC. */
+  async searchPlanets(term: string): Promise<User[]> {
+    const q = term.trim()
+    if (!q) return []
+    const { data, error } = await this.client.rpc('planet_directory', { term: q, max_rows: 20 })
+    if (error) throw new Error(error.message)
+    return ((data ?? []) as DirectoryRow[]).map((row) =>
+      toUser({
+        id: row.id,
+        handle: row.handle,
+        name: row.name,
+        bio: '',
+        seed: row.seed,
+        following: [],
+        saved: [],
+        is_demo: row.is_demo,
+        created_at: '',
+      }),
+    )
+  }
+
+  /**
+   * Create a cluster and seat its members in one atomic call. The client cannot
+   * insert the membership rows itself — the creator is not yet a member when the
+   * first row would be written, and RLS correctly refuses that.
+   */
+  async createCluster(name: string, memberIds: string[]) {
+    await this.requireUserId()
+    const label = name.trim()
+    if (!label) throw new Error('a cluster needs a name')
+    // demo planets have no reader behind them, so seating one only pads the list
+    const probe = memberIds.length ? memberIds : ['00000000-0000-0000-0000-000000000000']
+    const { data: members, error: memberError } = await this.client.from('planets').select('id,is_demo').in('id', probe)
+    if (memberError) throw new Error(memberError.message)
+    if ((members ?? []).some((m) => (m as { is_demo: boolean }).is_demo)) {
+      throw new Error('demo planets cannot join a cluster')
+    }
+    const { data, error } = await this.client.rpc('create_cluster', { cluster_name: label, member_ids: memberIds })
+    if (error) throw new Error(error.message)
+    return { state: await this.loadAll(), clusterId: String(data) }
+  }
+
+  async sendClusterMessage(clusterId: string, text: string) {
+    const me = await this.requireUserId()
+    const body = text.trim()
+    if (!body) throw new Error('a transmission needs words')
+    const { error } = await this.client
+      .from('messages')
+      .insert({ sender: me, cluster: clusterId, body })
+    if (error) throw new Error(error.message)
+    return this.loadAll()
+  }
+
+  async readCluster(clusterId: string) {
+    const me = await this.requireUserId()
+    // every line in the cluster that is not mine; the update policy checks
+    // membership and forbids touching my own lines, so RLS filters the rest
+    const { error } = await this.client
+      .from('messages')
+      .update({ read_at: new Date().toISOString() })
+      .eq('cluster', clusterId)
+      .neq('sender', me)
+      .is('read_at', null)
+    if (error) throw new Error(error.message)
+    return this.loadAll()
+  }
+
+  async leaveCluster(clusterId: string) {
+    const me = await this.requireUserId()
+    // withdraw my own lines first: once my membership row is gone the delete
+    // policy (sender-only) still allows it, but the read policy would hide them
+    const { error: purge } = await this.client
+      .from('messages')
+      .delete()
+      .eq('cluster', clusterId)
+      .eq('sender', me)
+    if (purge) throw new Error(purge.message)
+    const { error } = await this.client
+      .from('cluster_members')
+      .delete()
+      .eq('cluster', clusterId)
+      .eq('planet', me)
     if (error) throw new Error(error.message)
     return this.loadAll()
   }

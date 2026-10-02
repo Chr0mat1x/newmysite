@@ -22,8 +22,10 @@ import { useIsMobile } from './lib/useMedia'
 import { isMuted, setMuted, startAmbient, resumeAudio, sfx } from './lib/audio'
 
 function Orbit() {
-  const { currentUser, users, state, logout, resetGalaxy, supernovas, userById, following, savedPosts, transmissions, unreadCount, mode, linkStatus, busy, lastError, clearLastError, initialFocus, clearInitialFocus } =
+  const { currentUser, users, state, logout, resetGalaxy, supernovas, userById, following, savedPosts, transmissions, unreadCount, clusterUnreadCount, mode, linkStatus, busy, lastError, clearLastError, initialFocus, clearInitialFocus } =
     useGalaxy()
+  // direct unread plus cluster unread — one badge for the whole messenger
+  const mailUnread = unreadCount + clusterUnreadCount
   const handleRef = useRef<GalaxyHandle>(null)
   const [selected, setSelected] = useState<string | null>(null)
   const [hovered, setHovered] = useState<string | null>(null)
@@ -478,9 +480,9 @@ function Orbit() {
             >
               <span className="text-base leading-none">✉</span>
               <span className="mt-1">mail</span>
-              {unreadCount > 0 && (
+              {mailUnread > 0 && (
                 <span className="absolute right-2 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-white px-1 font-mono text-[9px] font-bold text-black">
-                  {unreadCount > 9 ? '9+' : unreadCount}
+                  {mailUnread > 9 ? '9+' : mailUnread}
                 </span>
               )}
             </button>
@@ -530,9 +532,9 @@ function Orbit() {
           className="pointer-events-auto relative rounded-full border border-white/12 bg-black/50 px-4 py-2.5 font-mono text-[10px] uppercase tracking-[0.18em] text-white/60 backdrop-blur-xl transition-colors hover:border-glow/50 hover:text-white"
         >
           ✉ messenger
-          {unreadCount > 0 && (
+          {mailUnread > 0 && (
             <span className="absolute -right-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-white px-1 font-mono text-[9px] font-bold text-black">
-              {unreadCount > 9 ? '9+' : unreadCount}
+              {mailUnread > 9 ? '9+' : mailUnread}
             </span>
           )}
         </button>

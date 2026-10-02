@@ -51,17 +51,33 @@ export interface GalaxyState {
    * table has, and the same reason `stars` is a join table.
    */
   messages?: Record<string, Message>
+  /** Group conversations ("clusters"), keyed by id. */
+  clusters?: Record<string, Cluster>
 }
 
 /**
- * A private transmission between two planets. `from`/`to` are user ids; a thread
- * is identified by the unordered pair, so both sides read the same history
- * without a conversation row to keep in sync.
+ * A group of planets talking in one thread. `members` always contains the
+ * creator; a direct message is *not* a cluster, so nothing about the existing
+ * two-party threads changes.
+ */
+export interface Cluster {
+  id: string
+  name: string
+  creator: string
+  members: string[]
+  createdAt: number
+}
+
+/**
+ * A private transmission. Either a direct message (`to` set, `clusterId`
+ * undefined) or a line in a cluster (`clusterId` set, `to` undefined) — the two
+ * never mix, which keeps the direct-thread queries unchanged.
  */
 export interface Message {
   id: string
   from: string
-  to: string
+  to?: string
+  clusterId?: string
   text: string
   createdAt: number
   /** set when the recipient has read it; undefined means unread */
@@ -111,10 +127,32 @@ export interface StarRow {
 export interface MessageRow {
   id: string
   sender: string
-  recipient: string
+  recipient: string | null
+  cluster: string | null
   body: string
   created_at: string
   read_at: string | null
+}
+
+export interface ClusterRow {
+  id: string
+  name: string
+  creator: string
+  created_at: string
+}
+
+export interface ClusterMemberRow {
+  cluster: string
+  planet: string
+}
+
+/** A planet as returned by the `planet_directory` search RPC. */
+export interface DirectoryRow {
+  id: string
+  handle: string
+  name: string
+  seed: number
+  is_demo: boolean
 }
 
 export const SUPERNOVA_THRESHOLD = 10

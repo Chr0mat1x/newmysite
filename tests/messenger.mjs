@@ -127,7 +127,8 @@ try {
 
   // --- privacy: the public anon key cannot read the mail --------------------
   const anonRead = await rest('messages?select=id')
-  ok('anon key cannot read private messages', Array.isArray(anonRead) && anonRead.length === 0, `rows=${anonRead?.length}`)
+  // a denial and an empty list are both acceptable; a leaked row is not
+  ok('anon key cannot read private messages', !Array.isArray(anonRead) || anonRead.length === 0, `rows=${anonRead?.length}`)
 
   // --- B sees it as unread, then reads it -----------------------------------
   // B is already signed in from signup; a reload picks up the new message.

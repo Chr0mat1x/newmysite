@@ -5,11 +5,13 @@ import react from '@vitejs/plugin-react'
 // (owner.github.io) is served from /. CI passes the right value through
 // VITE_BASE. Every other mode stays at the root.
 //
-// The `pages` mode is also built with blank VITE_SUPABASE_* vars (see
-// .env.pages), which drops the app into the offline localStorage backend — the
-// hosted demo needs no server to stay up.
+// `pages` mode is built with blank VITE_SUPABASE_* vars (see .env.pages), which
+// drops the app into the offline localStorage backend — the hosted demo needs no
+// server to stay up. `online` mode is the opposite: .env.online holds a real
+// Supabase project (absolute URL), so the hosted build has accounts, email
+// confirmation and a shared galaxy.
 export default defineConfig(({ mode }) => ({
-  base: mode === 'pages' ? process.env.VITE_BASE || '/' : '/',
+  base: mode === 'pages' || mode === 'online' ? process.env.VITE_BASE || '/' : '/',
   plugins: [react()],
   server: {
     host: '0.0.0.0',

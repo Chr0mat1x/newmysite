@@ -229,6 +229,10 @@ export function AuthGate() {
                     We sent a link to <span className="text-white/80">{pendingConfirmation ?? email}</span>. Open it to
                     activate your planet — until then nobody can sign in with this address.
                   </p>
+                  <p className="text-[12px] leading-relaxed text-white/40">
+                    Nothing yet? Give it a minute and check your spam folder — the link comes from an ORBIT address, not
+                    from a person.
+                  </p>
                   {!isRemote && (
                     <p className="text-[12px] leading-relaxed text-white/45">
                       This build is fully offline — accounts live only in this browser, so there is no email to send.
@@ -411,6 +415,13 @@ export function AuthGate() {
                   autoComplete="email"
                   className="input"
                 />
+                {mode === 'signup' && (
+                  <span className="mt-1 block font-mono text-[10px] leading-relaxed text-white/30">
+                    {isRemote
+                      ? 'we email a confirmation link — open it to activate your planet'
+                      : 'this offline build keeps accounts in this browser only'}
+                  </span>
+                )}
               </Field>
 
               {mode !== 'reset' && (

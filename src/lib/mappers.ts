@@ -1,4 +1,16 @@
-import type { GalaxyState, Message, MessageRow, PlanetRow, Post, SatelliteRow, Signal, SignalRow } from '../types'
+import type {
+  Cluster,
+  ClusterMemberRow,
+  ClusterRow,
+  GalaxyState,
+  Message,
+  MessageRow,
+  PlanetRow,
+  Post,
+  SatelliteRow,
+  Signal,
+  SignalRow,
+} from '../types'
 
 /** Postgres rows <-> the camelCase shapes the React tree already consumes. */
 
@@ -57,15 +69,27 @@ export function toMessage(row: MessageRow): Message {
   return {
     id: row.id,
     from: row.sender,
-    to: row.recipient,
+    // exactly one of these is set, by the table's target check
+    to: row.recipient ?? undefined,
+    clusterId: row.cluster ?? undefined,
     text: row.body,
     createdAt: ts(row.created_at) || Date.now(),
     readAt: row.read_at ? ts(row.read_at) : null,
   }
 }
 
+export function toCluster(row: ClusterRow, members: string[]): Cluster {
+  return {
+    id: row.id,
+    name: row.name,
+    creator: row.creator,
+    members,
+    createdAt: ts(row.created_at) || Date.now(),
+  }
+}
+
 /**
- * Folds the four remote tables into the single `GalaxyState` the app has always
+ * Folds the remote tables into the single `GalaxyState` the app has always
  * used, so every component downstream keeps working unchanged.
  */
 export function buildState(
@@ -75,6 +99,8 @@ export function buildState(
   stars: { satellite: string; planet: string }[],
   currentUserId: string | null,
   messages: MessageRow[] = [],
+  clusters: ClusterRow[] = [],
+  clusterMembers: ClusterMemberRow[] = [],
 ): GalaxyState {
   const users: GalaxyState['users'] = {}
   for (const p of planets) users[p.id] = toUser(p)
@@ -101,5 +127,14 @@ export function buildState(
   const msgs: Record<string, Message> = {}
   for (const m of messages) msgs[m.id] = toMessage(m)
 
-  return { version: 1, users, posts, currentUserId, messages: msgs }
+  const membersByCluster = new Map<string, string[]>()
+  for (const cm of clusterMembers) {
+    const list = membersByCluster.get(cm.cluster) ?? []
+    list.push(cm.planet)
+    membersByCluster.set(cm.cluster, list)
+  }
+  const cls: Record<string, Cluster> = {}
+  for (const c of clusters) cls[c.id] = toCluster(c, membersByCluster.get(c.id) ?? [])
+
+  return { version: 1, users, posts, currentUserId, messages: msgs, clusters: cls }
 }

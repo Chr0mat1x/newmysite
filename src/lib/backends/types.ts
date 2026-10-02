@@ -1,4 +1,4 @@
-import type { GalaxyState } from '../../types'
+import type { GalaxyState, User } from '../../types'
 
 /**
  * Signing up does not always end in a session: with email confirmation on, the
@@ -77,6 +77,16 @@ export interface Backend {
   sendMessage(to: string, text: string): Promise<GalaxyState>
   /** Mark every message the peer sent the caller as read. */
   readThread(peerId: string): Promise<GalaxyState>
+  /** Find planets by @handle or name. Demo planets are included and flagged. */
+  searchPlanets(term: string): Promise<User[]>
+  /** Create a group conversation; resolves with the fresh galaxy and the new id. */
+  createCluster(name: string, memberIds: string[]): Promise<{ state: GalaxyState; clusterId: string }>
+  /** Send a line into a cluster. */
+  sendClusterMessage(clusterId: string, text: string): Promise<GalaxyState>
+  /** Mark the cluster's other members' lines as read by the caller. */
+  readCluster(clusterId: string): Promise<GalaxyState>
+  /** Leave a cluster; the caller's own lines there are withdrawn. */
+  leaveCluster(clusterId: string): Promise<GalaxyState>
   /** Re-read the galaxy from the source. */
   refresh(): Promise<GalaxyState>
   /** Discard local state and rebuild — the offline "reset galaxy" affordance. */
