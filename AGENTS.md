@@ -168,7 +168,6 @@ this machine either. Anything the app talks to directly must go through the dev
 server's own origin:
 
 - `VITE_SUPABASE_URL=/sb`, proxied to `127.0.0.1:54321` (see `vite.config.ts`).
-- The local mail catcher is `/mb` -> `127.0.0.1:54324`, read by `Mailbox.tsx`.
 - `supabase/config.toml` must keep `site_url` / `additional_redirect_urls` on the
   work-host URL, or recovery links bounce to `localhost:3000`.
 - Changing `config.toml` needs `npx supabase stop && npx supabase start` (the
@@ -179,8 +178,9 @@ server's own origin:
 
 ### Mail
 
-There is no SMTP server locally. Supabase hands mail to a catcher (Inbucket) and
-`Mailbox.tsx` renders it in-app, rewriting loopback links to `/sb`.
+There is no SMTP server locally: Supabase hands mail to a catcher (Inbucket) on
+`127.0.0.1:54324`, which the browser cannot reach directly. The relay below
+forwards that mail to a real inbox.
 
 For mail to reach a real inbox, run the relay — it polls the catcher and
 re-sends each message over real SMTP, rewriting the loopback links to the public
@@ -254,8 +254,8 @@ be confirmed by mail before the planet can be signed into — `enable_confirmati
 = true` in `config.toml`. An unverified sign-in lands on the "confirm your
 address" screen rather than a dead end.
 
-Password recovery works end to end (request -> in-app mailbox -> link -> new
-password), verified from the public work host.
+Password recovery works end to end (request -> mail -> link -> new password),
+verified from the public work host.
 
 `AccountSettings.tsx` closes the loop on account self-service, reachable from the
 desktop footer (`account`) and the mobile navigator:

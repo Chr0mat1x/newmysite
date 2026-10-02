@@ -5,7 +5,7 @@
 //   URL=https://work-1-fffmzaxhmllpadif.prod-runtime.all-hands.dev/
 //
 // The Supabase suites need the local stack up and the `/sb` proxy pointing at
-// it (see AGENTS.md); the mail suite additionally needs `/mb`.
+// it (see AGENTS.md); the mail suite additionally reads the catcher directly.
 
 import { chromium, devices } from 'playwright-core'
 import { readFileSync } from 'node:fs'
@@ -139,7 +139,7 @@ export async function signUp(page, wait, { email, password, name, handle }) {
 
 /**
  * Sign up and walk the email-confirmation step, so the caller lands in the
- * galaxy. Requires the `/mb` proxy and a running local stack.
+ * galaxy. Requires a running local stack with the catcher reachable.
  */
 export async function signUpAndConfirm(page, wait, { email, password, name, handle }) {
   await signUp(page, wait, { email, password, name, handle })
@@ -147,20 +147,31 @@ export async function signUpAndConfirm(page, wait, { email, password, name, hand
   await wait(3500)
 }
 
-/** Open the confirmation mail in the in-app mailbox and follow its link. */
+/**
+ * Read a confirmation/recovery mail straight from the local catcher and follow
+ * its link. The catcher is a stack detail, not something the UI exposes, so the
+ * suite talks to it directly and rewrites the loopback link to the app host —
+ * exactly what the relay does on the way out to a real inbox.
+ */
 export async function confirmFromMailbox(page, wait, email) {
-  const panel = page.locator('button:has-text("mailbox")').first()
-  if (!(await panel.isVisible().catch(() => false))) return
-  // the panel is already open on the confirm screen; wait for the message
-  for (let i = 0; i < 12; i++) {
-    const n = await panel.locator('span.rounded-full').first().textContent().catch(() => null)
-    if (n) break
-    await wait(1500)
+  const catcher = process.env.CATCHER || 'http://127.0.0.1:54324'
+  const base = URL.replace(/\/$/, '')
+  const wanted = email.trim().toLowerCase()
+
+  let link = null
+  for (let i = 0; i < 15 && !link; i++) {
+    const box = await fetch(`${catcher}/api/v1/messages`).then((r) => r.json()).catch(() => null)
+    const hit = (box?.messages ?? []).find((m) =>
+      (m.To ?? []).some((t) => t.Address?.toLowerCase() === wanted),
+    )
+    if (hit) {
+      const full = await fetch(`${catcher}/api/v1/message/${hit.ID}`).then((r) => r.json()).catch(() => null)
+      const body = `${full?.Text ?? ''}\n${full?.HTML ?? ''}`
+      const found = [...body.matchAll(/https?:\/\/[^\s"'<>]+/g)].map((m) => m[0]).find((l) => l.includes('/verify'))
+      if (found) link = found.replace(/^https?:\/\/(127\.0\.0\.1|localhost):54321/, `${base}/sb`)
+    }
+    if (!link) await wait(1500)
   }
-  await page.locator('div.border-t button').first().click()
-  await wait(1200)
-  const links = await page.locator('a:has-text("open link")').evaluateAll((as) => as.map((a) => a.href))
-  const link = links.find((l) => l.includes('/sb/auth/v1/verify')) || links[0]
   if (!link) return
   await page.goto(link, { waitUntil: 'networkidle' })
   await wait(3500)

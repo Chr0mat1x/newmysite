@@ -1,7 +1,6 @@
 import { motion, AnimatePresence } from 'framer-motion'
 import { useEffect, useMemo, useState } from 'react'
 import { PlanetBadge } from './PlanetBadge'
-import { Mailbox } from './Mailbox'
 import { useGalaxy } from '../state/store'
 import { sfx } from '../lib/audio'
 import { planetSeed } from '../lib/seed'
@@ -108,7 +107,7 @@ export function AuthGate() {
       if (!err) {
         // Supabase answers the same way for unknown addresses (to avoid leaking
         // who has an account), so this cannot promise the mail went out.
-        setNotice(`if a planet exists for ${email.trim().toLowerCase()}, its reset link is now in the mailbox below`)
+        setNotice(`if a planet exists for ${email.trim().toLowerCase()}, a reset link is on its way to that inbox`)
         setResendAt(Date.now() + RESEND_COOLDOWN * 1000)
         setMode('sent')
       }
@@ -230,12 +229,11 @@ export function AuthGate() {
                     We sent a link to <span className="text-white/80">{pendingConfirmation ?? email}</span>. Open it to
                     activate your planet — until then nobody can sign in with this address.
                   </p>
-                  <p className="text-[12px] leading-relaxed text-white/45">
-                    {isRemote
-                      ? 'No mail server is configured in this demo, so nothing reaches a real inbox. The link appears in the mailbox below, usually within a few seconds.'
-                      : 'This build is fully offline — accounts live only in this browser, so there is no email to send.'}
-                  </p>
-                  <Mailbox open defaultOpen onlyTo={pendingConfirmation ?? email} />
+                  {!isRemote && (
+                    <p className="text-[12px] leading-relaxed text-white/45">
+                      This build is fully offline — accounts live only in this browser, so there is no email to send.
+                    </p>
+                  )}
                   {notice && (
                     <p className="text-[11px] leading-relaxed text-white/50">{notice}</p>
                   )}
@@ -327,10 +325,9 @@ export function AuthGate() {
                   </p>
                   <p className="text-[12px] leading-relaxed text-white/45">
                     {isRemote
-                      ? 'No mail server is configured in this demo, so nothing reaches a real inbox. The link for the address above shows up in the mailbox below — usually within a few seconds.'
+                      ? 'Open the link from your inbox to choose a new key. It expires after a while, so request another if it has gone stale.'
                       : 'This build is fully offline — accounts live only in this browser, so there is no email to send.'}
                   </p>
-                  <Mailbox open defaultOpen onlyTo={email} />
                   <button
                     onClick={() => void submit()}
                     disabled={busy || cooldownLeft > 0}
@@ -546,15 +543,6 @@ export function AuthGate() {
           )}
         </AnimatePresence>
       </motion.div>
-
-      {isRemote && mode !== 'confirm' && mode !== 'sent' && (
-        // The catcher is the only inbox this demo has, so keep it reachable from
-        // every screen — the confirmation panel is gone once you navigate away,
-        // and the link must not become unreachable after a refresh.
-        <div className="mx-auto mt-4 w-full max-w-sm px-4 pb-6">
-          <Mailbox />
-        </div>
-      )}
     </div>
   )
 }

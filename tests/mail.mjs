@@ -2,11 +2,12 @@
 //
 // Run: URL=https://<work-host>/ node tests/mail.mjs
 //
-// Covers the whole loop the user cares about: request a link, read it in the
-// in-app mailbox, follow it, set a new key, and prove the old one is dead.
-// Needs the local stack's mail catcher reached through the `/mb` proxy.
+// Covers the whole loop the user cares about: request a link, read it from the
+// catcher, follow it, set a new key, and prove the old one is dead. Needs the
+// local stack's mail catcher reachable directly (CATCHER, default
+// http://127.0.0.1:54324); the UI itself no longer exposes an inbox.
 
-import { open, reporter, stamp, leaveOrbit, signUp, confirmFromMailbox, signIn, inOrbit, openAccount } from './harness.mjs'
+import { open, reporter, stamp, leaveOrbit, signUp, confirmFromMailbox, signIn, inOrbit, openAccount, URL } from './harness.mjs'
 
 const { ok, errors, finish } = reporter('ORBIT · mail')
 const { browser, page, wait, contextErrors } = await open()
@@ -44,26 +45,27 @@ ok('reset form offers a link', await page.locator('button:has-text("send reset l
 await page.fill('input[type="email"]', mail)
 await page.locator('button:has-text("send reset link")').click()
 await wait(3500)
-ok('confirmation shown after requesting', await page.locator('text=reset link is now in the mailbox').first().isVisible().catch(() => false))
+ok('confirmation shown after requesting', await page.locator('text=reset link is on its way').first().isVisible().catch(() => false))
 ok('resend is on cooldown right after a request', await page.locator('button:has-text("resend in")').first().isVisible().catch(() => false))
 
-// --- the mailbox surfaces the message --------------------------------------
-ok('mailbox panel is available', await page.locator('button:has-text("mailbox")').first().isVisible().catch(() => false))
-for (let i = 0; i < 8; i++) {
-  if (await page.locator('button:has-text("mailbox") span.rounded-full').first().textContent().catch(() => null)) break
-  await wait(1500)
+// --- the mail carries a link back to the app host ---------------------------
+const catcher = process.env.CATCHER || 'http://127.0.0.1:54324'
+let recoveryLink = null
+for (let i = 0; i < 10 && !recoveryLink; i++) {
+  const box = await fetch(`${catcher}/api/v1/messages`).then((r) => r.json()).catch(() => null)
+  const hit = (box?.messages ?? []).find((m) => (m.To ?? []).some((t) => t.Address?.toLowerCase() === mail))
+  if (hit) {
+    const full = await fetch(`${catcher}/api/v1/message/${hit.ID}`).then((r) => r.json()).catch(() => null)
+    const body = `${full?.Text ?? ''}\n${full?.HTML ?? ''}`
+    const found = [...body.matchAll(/https?:\/\/[^\s"'<>]+/g)].map((m) => m[0]).find((l) => l.includes('/verify'))
+    if (found) recoveryLink = found.replace(/^https?:\/\/(127\.0\.0\.1|localhost):54321/, `${URL.replace(/\/$/, '')}/sb`)
+  }
+  if (!recoveryLink) await wait(1500)
 }
-const count = await page.locator('button:has-text("mailbox") span.rounded-full').first().textContent().catch(() => null)
-ok('mailbox picked the message up', !!count, `count=${count}`)
-
-await page.locator('div.border-t button').first().click()
-await wait(1200)
-const links = await page.locator('a:has-text("open link")').evaluateAll((as) => as.map((a) => a.href))
-const link = links.find((l) => l.includes('/sb/auth/v1/verify')) || links[0]
-ok('message link points at the app host, not loopback', !!link && !/\/\/127\.0\.0\.1/.test(link), link || 'none')
+ok('message link points at the app host, not loopback', !!recoveryLink && !/\/\/127\.0\.0\.1/.test(recoveryLink), recoveryLink || 'none')
 
 // --- follow it and set a new key -------------------------------------------
-await page.goto(link, { waitUntil: 'networkidle' })
+await page.goto(recoveryLink, { waitUntil: 'networkidle' })
 await wait(3000)
 ok('recovery screen shown after following the link', await page.locator('button:has-text("SET NEW KEY")').isVisible().catch(() => false))
 

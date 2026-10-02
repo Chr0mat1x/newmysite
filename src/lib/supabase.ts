@@ -57,17 +57,6 @@ supabase?.auth.onAuthStateChange((event) => {
 
 export const isRemote = supabase !== null
 
-/**
- * The local stack ships a mail catcher (Inbucket/Mailpit) instead of an SMTP
- * server, so recovery mail never reaches a real inbox. When Supabase is reached
- * through the `/sb` proxy we also expose the catcher at `/mb` so the UI can show
- * those messages. Hosted projects have no catcher and this is null.
- */
-export const mailCatcherUrl: string | null =
-  rawUrl && anonKey && !/^https?:\/\//i.test(rawUrl)
-    ? new URL(rawUrl.replace(/\/sb\/?$/, '/mb'), window.location.origin).toString().replace(/\/$/, '')
-    : null
-
 /** Absolute base of the Supabase API, for building verify links in the UI. */
 export const supabaseBase = rawUrl ? resolveUrl(rawUrl).replace(/\/$/, '') : null
 
