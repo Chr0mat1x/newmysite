@@ -18,7 +18,8 @@
     "android:sync": "npm run build:android && cap sync android",
     "android:apk": "npm run android:sync && cd android && ./gradlew assembleDebug",
     "android:apk:release": "npm run android:sync && cd android && ./gradlew assembleRelease",
-    "build:pages": "vite build --mode pages"
+    "build:pages": "vite build --mode pages",
+    "deploy:pages": "bash tools/deploy-pages.sh"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.117.2",

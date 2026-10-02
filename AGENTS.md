@@ -13,6 +13,8 @@ post orbits them as a satellite. Monochrome space aesthetic.
 - `npm test`, `npm run test:supabase`, `npm run test:mail` — the browser suites
   in `tests/` (see Verification).
 - `npm run android:apk` — build the debug APK (see Android).
+- `npm run build:pages` — offline bundle for GitHub Pages (`VITE_BASE` sets the subpath).
+- `npm run deploy:pages` — build and publish the demo to the live Pages branch (see Hosting).
 
 ## Stack
 
@@ -347,3 +349,28 @@ backend has no mail, so it skips the confirmation step entirely; email and
 password changes there take effect immediately, and `deleteAccount` purges the
 user's row, satellites, signals and follows through the reducer. Set the env vars
 (and enable anonymous sign-ins) before calling any deployment production-ready.
+
+## Hosting (permanent links)
+
+The work-host preview URLs die with the sandbox, so the demo also ships as
+static builds on GitHub:
+
+- **Demo:** https://chr0mat1x.github.io/orbit/
+- **APK:** https://github.com/Chr0mat1x/newmysite/releases/latest
+- **Source:** https://github.com/Chr0mat1x/newmysite
+
+`npm run deploy:pages` builds the offline bundle and commits it into
+`Chr0mat1x/Chr0mat1x.github.io` under `orbit/`. That repo already serves Pages,
+so no site needs to be created. Do **not** switch it to a "GitHub Actions"
+Pages source: the installation token cannot create a Pages site, so
+`configure-pages` with `enablement: true` fails with
+`Resource not accessible by integration`. The script commits to the existing
+Pages branch instead, which needs no extra permission, and it refuses to deploy
+if a Supabase URL or key leaked into the bundle.
+
+The hosted demo is deliberately the **offline** build. `.env.pages` blanks the
+backend vars (Vite loads `.env.<mode>` after `.env.local`), which both keeps the
+shared-galaxy URL and anon key out of a public bundle and makes the demo
+independent of any server. `.env.android` is blank for the same reason: the
+released APK runs on-device and survives the sandbox. Point either file at a
+real Supabase project to ship the shared galaxy instead.

@@ -10,12 +10,14 @@ seen. The brighter a satellite, the more it resonated. Ten likes and a post deto
 
 ## Live
 
-- **Play (hosted demo):** https://chr0mat1x.github.io/newmysite/ — runs on the offline
+- **Play (hosted demo):** https://chr0mat1x.github.io/orbit/ — runs on the offline
   localStorage backend, so it needs no server and stays reachable indefinitely.
+- **Android app:** https://github.com/Chr0mat1x/newmysite/releases/latest — download the
+  APK, open it on the phone, allow installation from unknown sources.
 - **Source:** https://github.com/Chr0mat1x/newmysite
 
-The hosted build is intentionally the offline one: sign up, post, react, and fly through the
-galaxy entirely in your browser, with your own galaxy saved to `localStorage`. The shared
+Both hosted builds are intentionally the offline one: sign up, post, react, and fly through the
+galaxy entirely on your device, with your galaxy saved to `localStorage`. The shared
 (multi-user) galaxy runs only where a Supabase backend is configured — see *Running* below.
 
 ---
@@ -37,7 +39,14 @@ npm run preview
 Build the offline bundle for GitHub Pages (blank backend vars, `VITE_BASE` as the subpath):
 
 ```bash
-VITE_BASE=/newmysite/ npm run build:pages
+VITE_BASE=/orbit/ npm run build:pages
+```
+
+Build the Android APK (offline build; point `.env.android` at a real Supabase project first
+if you want the shared galaxy):
+
+```bash
+npm run android:apk    # android/app/build/outputs/apk/debug/app-debug.apk
 ```
 
 Type-check only:
