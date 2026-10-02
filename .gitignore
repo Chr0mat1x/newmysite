@@ -5,7 +5,9 @@ dist-ssr
 .env
 .env.*
 !.env.example
+!.env.relay.example
 .DS_Store
 .vite
 *.log
 .agent_tmp
+tools/.mail-relay-seen.json

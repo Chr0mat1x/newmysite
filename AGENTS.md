@@ -9,6 +9,7 @@ post orbits them as a satellite. Monochrome space aesthetic.
   host proxy (`https://work-1-*.prod-runtime.all-hands.dev/`) reaches it.
 - `npm run build` — `tsc --noEmit && vite build`. Must stay green.
 - `npm run preview` — serve `dist/`.
+- `npm run relay:mail` — forward captured auth mail to a real inbox (see Mail).
 
 ## Stack
 
@@ -179,9 +180,27 @@ server's own origin:
 ### Mail
 
 There is no SMTP server locally. Supabase hands mail to a catcher (Inbucket) and
-`Mailbox.tsx` renders it in-app, rewriting loopback links to `/sb`. Real delivery
-needs SMTP configured in `config.toml` under `[auth.email.smtp]`, or a hosted
-project with its own SMTP.
+`Mailbox.tsx` renders it in-app, rewriting loopback links to `/sb`.
+
+For mail to reach a real inbox, run the relay — it polls the catcher and
+re-sends each message over real SMTP, rewriting the loopback links to the public
+origin on the way out:
+
+```bash
+cp .env.relay.example .env.relay   # fill in a provider, then:
+npm run relay:mail
+```
+
+`.env.relay` is gitignored, so credentials stay out of the repo. With no SMTP
+settings the relay still runs and reports what it *would* forward, which makes it
+useful as a diagnostic. `npm run test:relay` covers the rewriting, the MIME
+building and a full SMTP delivery against a throwaway server; it needs a
+captured message, so sign a planet up first.
+
+The alternative — `[auth.email.smtp]` in `config.toml` — also works, but the CLI
+only interpolates `env(NAME)` when the variable is actually exported at the
+moment `supabase` runs; otherwise `supabase status` fails with
+`CliConfigParseError`. The relay avoids that sharp edge entirely.
 
 ### Bringing the environment back up
 

@@ -11,7 +11,9 @@
     "preview": "vite preview --host 0.0.0.0",
     "test": "node tests/core.mjs",
     "test:supabase": "node tests/supabase.mjs",
-    "test:mail": "node tests/mail.mjs"
+    "test:mail": "node tests/mail.mjs",
+    "relay:mail": "node tools/mail-relay.mjs",
+    "test:relay": "node tests/relay.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.117.2",
