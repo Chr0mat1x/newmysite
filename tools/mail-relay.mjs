@@ -89,11 +89,13 @@ export class SmtpClient {
   constructor({ host, port = 587, user, pass, secure = false, timeout = 15000 }) {
     Object.assign(this, { host, port, user, pass, secure, timeout })
     this.buffer = ''
+    this.reply = []
     this.pending = []
     this.socket = null
   }
 
   async connect() {
+    this.encrypted = this.secure
     this.socket = this.secure
       ? await new Promise((ok, no) => {
           const t = tlsConnect({ host: this.host, port: this.port, servername: this.host }, () => ok(t))
@@ -108,15 +110,40 @@ export class SmtpClient {
     await this.#expect(220)
   }
 
-  /** Wire the socket to the line reader; also used again after STARTTLS. */
+  /**
+   * Wire the socket to the line reader. Handlers are kept by reference so they
+   * can be detached individually before a TLS upgrade — removing *all* listeners
+   * on the raw socket would also strip the ones the TLS layer installs on it.
+   */
   #attach() {
+    this.handlers = {
+      data: (chunk) => this.#onData(chunk),
+      error: (e) => this.#fail(e),
+      close: () => this.#fail(new Error('smtp connection closed')),
+      timeout: () => this.#fail(new Error('smtp timeout')),
+    }
     this.socket.setEncoding('utf8')
-    this.socket.setTimeout(this.timeout, () => this.#fail(new Error('smtp timeout')))
-    this.socket.on('data', (chunk) => this.#onData(chunk))
-    this.socket.on('error', (e) => this.#fail(e))
-    this.socket.on('close', () => this.#fail(new Error('smtp connection closed')))
+    this.socket.setTimeout(this.timeout, this.handlers.timeout)
+    this.socket.on('data', this.handlers.data)
+    this.socket.on('error', this.handlers.error)
+    this.socket.on('close', this.handlers.close)
   }
 
+  #detach() {
+    if (!this.socket || !this.handlers) return
+    this.socket.off('data', this.handlers.data)
+    this.socket.off('error', this.handlers.error)
+    this.socket.off('close', this.handlers.close)
+    this.socket.setTimeout(0)
+    this.handlers = null
+  }
+
+  /**
+   * Split incoming bytes into replies. A reply is one or more lines: every line
+   * but the last is flagged with a `-` after the code, and the terminating line
+   * has a space. Servers routinely send a whole reply in one chunk, so each
+   * pending waiter gets the complete reply, not just its first line.
+   */
   #onData(chunk) {
     this.buffer += chunk
     for (;;) {
@@ -124,8 +151,11 @@ export class SmtpClient {
       if (idx === -1) return
       const line = this.buffer.slice(0, idx)
       this.buffer = this.buffer.slice(idx + 2)
-      if (/^\d{3}-/.test(line)) continue // continuation line keeps the reply open
-      this.pending.shift()?.(line)
+      this.reply.push(line)
+      if (/^\d{3}-/.test(line)) continue
+      const reply = this.reply.join('\n')
+      this.reply = []
+      this.pending.shift()?.(reply)
     }
   }
 
@@ -151,28 +181,43 @@ export class SmtpClient {
     return this.#expect(code)
   }
 
-  /** STARTTLS is opportunistic: only attempted when the server advertises it. */
+  /** Say hello and remember the server's capabilities. */
+  async sendEhlo() {
+    this.caps = await this.#send('EHLO orbit.local', 250)
+    return this.caps
+  }
+
+  /**
+   * STARTTLS is opportunistic: only attempted when the server advertises it.
+   * Returns the capability reply, which is what callers assert against.
+   */
   async startTlsIfOffered() {
-    this.socket.write('EHLO orbit.local\r\n')
-    const caps = []
-    for (;;) {
-      const line = await this.#readLine()
-      if (line instanceof Error) throw line
-      caps.push(line)
-      if (line.startsWith('250 ')) break
-    }
-    if (this.secure || !caps.some((l) => /STARTTLS/i.test(l))) return
+    await this.sendEhlo()
+    if (this.encrypted || !/STARTTLS/i.test(this.caps)) return this.caps
     await this.#send('STARTTLS', 220)
+    // Detach only our own plaintext handlers; the TLS layer installs its own on
+    // the same raw socket, and removing those would break the handshake.
+    const raw = this.socket
+    this.#detach()
     this.socket = await new Promise((ok, no) => {
-      const t = tlsConnect({ socket: this.socket, servername: this.host }, () => ok(t))
+      const t = tlsConnect({ socket: raw, servername: this.host }, () => ok(t))
       t.once('error', no)
     })
+    this.encrypted = true
+    this.buffer = ''
+    this.reply = []
     this.#attach()
     await this.#send('EHLO orbit.local', 250)
+    return this.caps
   }
 
   async auth() {
     if (!this.user) return
+    // If the server offers STARTTLS but the connection is still plaintext, the
+    // upgrade was missed — never put credentials on the wire in that state.
+    if (!this.encrypted && /STARTTLS/i.test(this.caps ?? '')) {
+      throw new Error('refusing to send SMTP credentials without TLS')
+    }
     await this.#send('AUTH LOGIN', 334)
     await this.#send(Buffer.from(this.user, 'utf8').toString('base64'), 334)
     await this.#send(Buffer.from(this.pass ?? '', 'utf8').toString('base64'), 235)
@@ -246,21 +291,30 @@ export async function fetchMessage(cfg, id) {
 }
 
 /** Forward a single captured message. Returns a short outcome string. */
-export async function forwardMessage(cfg, id) {
+export async function forwardMessage(cfg, id, { attempts = 3 } = {}) {
   const msg = await fetchMessage(cfg, id)
   if (!msg.to) return 'skipped: no recipient'
   const from = cfg.smtp.from || cfg.smtp.user
   if (!cfg.smtp.host) return `dry-run: would forward "${msg.subject}" to ${msg.to}`
-  const client = new SmtpClient(cfg.smtp)
-  try {
-    await client.connect()
-    await client.startTlsIfOffered()
-    await client.auth()
-    await client.sendMail({ from, to: msg.to, data: buildMime({ from, to: msg.to, ...msg }) })
-    return `forwarded "${msg.subject}" to ${msg.to}`
-  } finally {
-    await client.close()
+
+  let lastError
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    const client = new SmtpClient(cfg.smtp)
+    try {
+      await client.connect()
+      await client.startTlsIfOffered()
+      await client.auth()
+      await client.sendMail({ from, to: msg.to, data: buildMime({ from, to: msg.to, ...msg }) })
+      return `forwarded "${msg.subject}" to ${msg.to}`
+    } catch (e) {
+      lastError = e
+      // A transient network fault should not lose the mail; back off and retry.
+      if (attempt < attempts) await new Promise((r) => setTimeout(r, attempt * 1000))
+    } finally {
+      await client.close()
+    }
   }
+  throw lastError
 }
 
 /** Poll the catcher forever, forwarding only messages we have not seen. */

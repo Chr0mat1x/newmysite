@@ -6,7 +6,7 @@
 
 import { createServer } from 'node:net'
 import { reporter } from './harness.mjs'
-import { rewriteLinks, buildMime, forwardMessage, readConfig, addr } from '../tools/mail-relay.mjs'
+import { rewriteLinks, buildMime, forwardMessage, readConfig, addr, SmtpClient } from '../tools/mail-relay.mjs'
 
 const { ok, finish } = reporter('relay')
 
@@ -105,7 +105,80 @@ ok('mime base64-encodes the text part', mime.includes(Buffer.from('plain body').
 ok('mime encodes a non-ascii subject', buildMime({ from: 'a@b', to: 'c@d', subject: 'Привет' }).includes('=?UTF-8?B?'))
 ok('addr strips angle brackets', addr('ORBIT <orbit@orbit.space>') === 'orbit@orbit.space')
 
-// --- integration: catcher -> SMTP --------------------------------------------
+// --- integration: a multi-line reply must be seen in full --------------------
+// Resend sends the whole EHLO answer in one TCP chunk. A reader that hands the
+// caller only the first line silently loses STARTTLS, and the server then rejects
+// AUTH with "538 Must issue a STARTTLS command first". This pins that down.
+{
+  const server = createServer((socket) => {
+    socket.write('220 multi.local ESMTP\r\n')
+    socket.on('data', () => {
+      // one chunk, four lines: the shape that used to break the parser
+      socket.write('250-multi.local\r\n250-AUTH PLAIN LOGIN\r\n250-STARTTLS\r\n250 SIZE 1000\r\n')
+    })
+  })
+  await new Promise((r) => server.listen(2526, '127.0.0.1', r))
+  const client = new SmtpClient({ host: '127.0.0.1', port: 2526, user: '', pass: '' })
+  await client.connect()
+  // only EHLO — the fake server advertises STARTTLS but cannot complete a TLS
+  // handshake, so assert on what the client parsed, not on the upgrade
+  await client.sendEhlo()
+  ok('multi-line reply keeps every capability', /STARTTLS/.test(client.caps) && /AUTH PLAIN LOGIN/.test(client.caps), String(client.caps).replace(/\n/g, ' | '))
+  await client.close()
+  server.close()
+}
+// --- integration: credentials must never cross a plaintext link --------------
+// A server that offers STARTTLS but whose upgrade we missed must not receive
+// AUTH; that was the shape of the intermittent 538 failure.
+{
+  const server = createServer((socket) => {
+    socket.write('220 plain.local ESMTP\r\n')
+    socket.on('data', () => socket.write('250-plain.local\r\n250-STARTTLS\r\n250 AUTH LOGIN\r\n'))
+  })
+  await new Promise((r) => server.listen(2527, '127.0.0.1', r))
+  const client = new SmtpClient({ host: '127.0.0.1', port: 2527, user: 'resend', pass: 'secret' })
+  await client.connect()
+  await client.sendEhlo()
+  let refused = ''
+  try {
+    await client.auth()
+  } catch (e) {
+    refused = e.message
+  }
+  ok('auth is refused when STARTTLS was offered but skipped', /without TLS/.test(refused), refused)
+  await client.close()
+  server.close()
+}
+
+// --- integration: a failing send is retried ----------------------------------
+{
+  let calls = 0
+  const server = createServer((socket) => {
+    calls++
+    socket.write('220 flaky.local ESMTP\r\n')
+    // refuse everything, so the client has to exhaust its attempts
+    socket.on('data', () => socket.write('550 nope\r\n'))
+  })
+  await new Promise((r) => server.listen(2528, '127.0.0.1', r))
+  const list = await fetch('http://127.0.0.1:54324/api/v1/messages').then((r) => r.json()).catch(() => null)
+  const id = list?.messages?.length ? list.messages[list.messages.length - 1].ID : null
+  if (id) {
+    const flaky = {
+      ...readConfig({ RELAY_CATCHER_URL: 'http://127.0.0.1:54324', RELAY_PUBLIC_BASE: PUBLIC }),
+      smtp: { host: '127.0.0.1', port: 2528, user: 'u', pass: 'p', from: 'o@o' },
+      forwardTo: 'inbox@example.com',
+    }
+    let threw = ''
+    try {
+      await forwardMessage(flaky, id, { attempts: 3 })
+    } catch (e) {
+      threw = e.message
+    }
+    ok('a permanently failing send gives up after the retries', calls === 3, `connections=${calls}`)
+    ok('the failure surfaces to the caller', threw.length > 0, threw.slice(0, 50))
+  }
+  server.close()
+}
 const cfg = readConfig({ RELAY_CATCHER_URL: 'http://127.0.0.1:54324', RELAY_PUBLIC_BASE: PUBLIC })
 const listed = await fetch(`${cfg.catcher}/api/v1/messages`).then((r) => r.json()).catch(() => null)
 if (!listed || !(listed.messages ?? []).length) {

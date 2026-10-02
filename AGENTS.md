@@ -197,6 +197,23 @@ useful as a diagnostic. `npm run test:relay` covers the rewriting, the MIME
 building and a full SMTP delivery against a throwaway server; it needs a
 captured message, so sign a planet up first.
 
+Resend is wired up and verified end to end: signup → catcher → relay → real
+inbox → click the link → signed in. Two things about it are worth knowing.
+
+The onboarding sender (`onboarding@resend.dev`) only delivers to the address
+that owns the Resend account, so `RELAY_FORWARD_TO` pins every message there.
+Remove that line once a domain is verified and real recipients can be addressed
+directly.
+
+Resend requires STARTTLS on port 587. The SMTP client therefore has to parse a
+*multi-line* EHLO reply: the whole capability list arrives in one TCP chunk, and
+a reader that hands the caller only the first line loses `STARTTLS`, after which
+the server rejects `AUTH` with `538 Must issue a STARTTLS command first`. That
+was an intermittent failure until the reply accumulator was fixed; the client
+now also refuses to send credentials whenever the server advertised STARTTLS but
+the connection is still plaintext, and retries a failed send three times with
+backoff. The tests pin all three behaviours down.
+
 The alternative — `[auth.email.smtp]` in `config.toml` — also works, but the CLI
 only interpolates `env(NAME)` when the variable is actually exported at the
 moment `supabase` runs; otherwise `supabase status` fails with
