@@ -33,6 +33,9 @@ jobs:
           VITE_BASE: /newmysite/
         run: npm run build:pages
       - uses: actions/configure-pages@v5
+        with:
+          # Enables the Pages site on the first run if it does not exist yet.
+          enablement: true
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
