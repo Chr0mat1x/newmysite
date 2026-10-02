@@ -1,7 +1,15 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
-export default defineConfig({
+// A GitHub Pages project page is served from /<repo>/, while a user site
+// (owner.github.io) is served from /. CI passes the right value through
+// VITE_BASE. Every other mode stays at the root.
+//
+// The `pages` mode is also built with blank VITE_SUPABASE_* vars (see
+// .env.pages), which drops the app into the offline localStorage backend — the
+// hosted demo needs no server to stay up.
+export default defineConfig(({ mode }) => ({
+  base: mode === 'pages' ? process.env.VITE_BASE || '/' : '/',
   plugins: [react()],
   server: {
     host: '0.0.0.0',
@@ -33,4 +41,4 @@ export default defineConfig({
       },
     },
   },
-})
+}))

@@ -6,6 +6,7 @@ dist-ssr
 .env.*
 !.env.example
 !.env.relay.example
+!.env.pages
 .DS_Store
 .vite
 *.log

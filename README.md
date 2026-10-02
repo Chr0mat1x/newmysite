@@ -8,6 +8,18 @@ seen. The brighter a satellite, the more it resonated. Ten likes and a post deto
 
 ---
 
+## Live
+
+- **Play (hosted demo):** https://chr0mat1x.github.io/newmysite/ — runs on the offline
+  localStorage backend, so it needs no server and stays reachable indefinitely.
+- **Source:** https://github.com/Chr0mat1x/newmysite
+
+The hosted build is intentionally the offline one: sign up, post, react, and fly through the
+galaxy entirely in your browser, with your own galaxy saved to `localStorage`. The shared
+(multi-user) galaxy runs only where a Supabase backend is configured — see *Running* below.
+
+---
+
 ## Run it
 
 ```bash
@@ -20,6 +32,12 @@ Build and preview a production bundle:
 ```bash
 npm run build
 npm run preview
+```
+
+Build the offline bundle for GitHub Pages (blank backend vars, `VITE_BASE` as the subpath):
+
+```bash
+VITE_BASE=/newmysite/ npm run build:pages
 ```
 
 Type-check only:
