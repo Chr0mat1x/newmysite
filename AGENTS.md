@@ -304,6 +304,50 @@ only interpolates `env(NAME)` when the variable is actually exported at the
 moment `supabase` runs; otherwise `supabase status` fails with
 `CliConfigParseError`. The relay avoids that sharp edge entirely.
 
+### Going online (real users, real mail)
+
+The local stack is for development only: it dies with the sandbox and its
+catcher is unreachable from anyone else's machine. A shareable ORBIT needs a
+hosted backend, and this is the whole path.
+
+1. **Supabase project.** Create one at supabase.com. Project Settings -> API
+   gives the project URL and the `anon` key.
+2. **Schema.** `supabase link --project-ref <ref>` then `supabase db push` (or
+   paste the files in `supabase/migrations/` into the SQL editor in filename
+   order). This creates the tables, RLS and the `delete_me` / `handle_available`
+   RPCs.
+3. **SMTP.** Supabase's built-in sender is capped at 2 mails/hour and only
+   delivers to the project team's own addresses, so real users get nothing.
+   Configure a custom SMTP provider under Authentication -> Settings: any
+   transactional provider (Resend, Brevo, SendGrid, SES) works. Free tiers are
+   enough for a friends-and-family galaxy. Most providers require a **verified
+   sending domain**; without one, Resend only mails the account owner and Brevo
+   only mails the verified sender address.
+4. **Redirect URLs.** Authentication -> URL Configuration: Site URL = the app's
+   URL, and add it to the redirect allow-list **with its path and trailing
+   slash** (e.g. `https://chr0mat1x.github.io/orbit/`). The app already sends
+   `emailRedirectTo` from `appOrigin` in `src/lib/supabase.ts`; this step is what
+   stops Supabase rejecting that redirect.
+5. **Build + deploy.** Copy `.env.online.example` to `.env.online`, fill in the
+   two values, then:
+   ```bash
+   ORBIT_ONLINE=1 npm run deploy:pages   # GitHub Pages at /orbit/
+   # or, for the Android app talking to the same backend:
+   npm run android:apk:online
+   ```
+   `android:apk:online` builds with `.env.online` (absolute Supabase URL, baked
+   into the WebView) instead of the offline `.env.android`. That is the only
+   thing that makes two phones share one galaxy.
+
+Two gotchas this path exists to prevent:
+
+- The app lives at `/orbit/` on Pages, so the redirect must include the path.
+  Using a bare origin sent confirmations to the Pages root and 404'd; `appOrigin`
+  fixes that and `npm run test:mail` pins it.
+- `deploy:pages` in offline mode refuses to publish a bundle that contains a
+  Supabase key. Online mode is the deliberate opposite; never put a *service*
+  key in `.env.online` — only the anon key, which is public by design.
+
 ### Bringing the environment back up
 
 The local stack runs in Docker, and a restarted container can come back with the

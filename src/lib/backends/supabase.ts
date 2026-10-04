@@ -10,7 +10,7 @@ import type {
   StarRow,
   User,
 } from '../../types'
-import { supabase } from '../supabase'
+import { appOrigin, supabase } from '../supabase'
 import { buildState, toUser } from '../mappers'
 import { planetSeed } from '../seed'
 import { handleFromIdentity, normalizeEmail } from '../auth'
@@ -120,7 +120,7 @@ export class SupabaseBackend implements Backend {
     const { error } = await this.client.auth.resend({
       type: 'signup',
       email: normalizeEmail(email),
-      options: { emailRedirectTo: window.location.origin },
+      options: { emailRedirectTo: appOrigin },
     })
     if (error) return this.friendlyAuthError(error.message)
     return null
@@ -165,7 +165,7 @@ export class SupabaseBackend implements Backend {
     const mail = normalizeEmail(email)
     if (!mail) return 'enter the email you signed up with'
     const { error } = await this.client.auth.resetPasswordForEmail(mail, {
-      redirectTo: window.location.origin,
+      redirectTo: appOrigin,
     })
     if (error) return this.friendlyAuthError(error.message)
     return null
@@ -189,7 +189,7 @@ export class SupabaseBackend implements Backend {
     if (!mail) return 'enter a valid email address'
     const { error } = await this.client.auth.updateUser(
       { email: mail },
-      { emailRedirectTo: window.location.origin },
+      { emailRedirectTo: appOrigin },
     )
     if (error) return this.friendlyAuthError(error.message)
     return null

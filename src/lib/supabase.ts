@@ -60,5 +60,15 @@ export const isRemote = supabase !== null
 /** Absolute base of the Supabase API, for building verify links in the UI. */
 export const supabaseBase = rawUrl ? resolveUrl(rawUrl).replace(/\/$/, '') : null
 
+/**
+ * Origin a confirm/recovery link should land on. Must be the *app's* own base,
+ * not `window.location.origin`: on a GitHub Pages project page the app is served
+ * from `/orbit/`, so the bare origin would drop the user on a 404 after they
+ * click the mail. `import.meta.env.BASE_URL` is `/orbit/` in that build and `/`
+ * everywhere else. Trailing slash is required — Supabase rejects redirect URLs
+ * without one when they include a path.
+ */
+export const appOrigin = new URL(import.meta.env.BASE_URL, window.location.origin).toString()
+
 /** Rough health of the remote link, shown in the HUD's link indicator. */
 export type LinkStatus = 'offline' | 'connecting' | 'online' | 'error'
