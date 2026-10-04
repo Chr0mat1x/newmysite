@@ -250,7 +250,11 @@ server's own origin:
 
 - `VITE_SUPABASE_URL=/sb`, proxied to `127.0.0.1:54321` (see `vite.config.ts`).
 - `supabase/config.toml` must keep `site_url` / `additional_redirect_urls` on the
-  work-host URL, or recovery links bounce to `localhost:3000`.
+  work-host URL, or recovery links bounce to `localhost:3000`. **The work host
+  changes every time the sandbox is recreated** (e.g. `work-1-<hash>...`), so on
+  a fresh sandbox grep `config.toml` for a stale host and update both lines,
+  otherwise confirmation mail carries a dead link. `RELAY_PUBLIC_BASE` in
+  `.env.relay` needs the same host.
 - Changing `config.toml` needs `npx supabase stop && npx supabase start` (the
   auth container reads it from the environment at creation). It takes a couple
   of minutes and applies the migration again.
