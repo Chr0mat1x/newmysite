@@ -73,6 +73,7 @@ export function toMessage(row: MessageRow): Message {
     to: row.recipient ?? undefined,
     clusterId: row.cluster ?? undefined,
     text: row.body,
+    image: row.image ?? undefined,
     createdAt: ts(row.created_at) || Date.now(),
     readAt: row.read_at ? ts(row.read_at) : null,
   }

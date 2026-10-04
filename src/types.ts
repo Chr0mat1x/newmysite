@@ -79,6 +79,8 @@ export interface Message {
   to?: string
   clusterId?: string
   text: string
+  /** optional image, same shape as a satellite's: a URL/data URL, not a blob */
+  image?: string
   createdAt: number
   /** set when the recipient has read it; undefined means unread */
   readAt?: number | null
@@ -130,6 +132,7 @@ export interface MessageRow {
   recipient: string | null
   cluster: string | null
   body: string
+  image: string | null
   created_at: string
   read_at: string | null
 }

@@ -323,14 +323,15 @@ export class SupabaseBackend implements Backend {
     return this.loadAll()
   }
 
-  async sendMessage(to: string, text: string) {
+  async sendMessage(to: string, text: string, image?: string) {
     const me = await this.requireUserId()
     const body = text.trim()
-    if (!body) throw new Error('a transmission needs words')
+    const pic = image?.trim() || null
+    if (!body && !pic) throw new Error('a transmission needs words or an image')
     if (to === me) throw new Error('you cannot message your own planet')
     // RLS would refuse a forged sender anyway; this turns that into a clear
     // message instead of an opaque policy violation.
-    const { error } = await this.client.from('messages').insert({ sender: me, recipient: to, body })
+    const { error } = await this.client.from('messages').insert({ sender: me, recipient: to, body, image: pic })
     if (error) throw new Error(error.message)
     return this.loadAll()
   }
@@ -391,13 +392,14 @@ export class SupabaseBackend implements Backend {
     return { state: await this.loadAll(), clusterId: String(data) }
   }
 
-  async sendClusterMessage(clusterId: string, text: string) {
+  async sendClusterMessage(clusterId: string, text: string, image?: string) {
     const me = await this.requireUserId()
     const body = text.trim()
-    if (!body) throw new Error('a transmission needs words')
+    const pic = image?.trim() || null
+    if (!body && !pic) throw new Error('a transmission needs words or an image')
     const { error } = await this.client
       .from('messages')
-      .insert({ sender: me, cluster: clusterId, body })
+      .insert({ sender: me, cluster: clusterId, body, image: pic })
     if (error) throw new Error(error.message)
     return this.loadAll()
   }

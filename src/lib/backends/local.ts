@@ -201,16 +201,17 @@ export class LocalBackend implements Backend {
     return this.apply({ type: 'toggleSave', postId })
   }
 
-  async sendMessage(to: string, text: string) {
+  async sendMessage(to: string, text: string, image?: string) {
     const me = this.require()
     const body = text.trim()
-    if (!body) throw new Error('a transmission needs words')
+    const pic = image?.trim() || undefined
+    if (!body && !pic) throw new Error('a transmission needs words or an image')
     if (to === me.id) throw new Error('you cannot message your own planet')
     const peer = this.state.users[to]
     if (!peer) throw new Error('no such planet')
     // Demo planets have no account behind them, so nothing could ever read it.
     if (peer.mock) throw new Error(`${peer.name} is a demo planet — it cannot answer`)
-    const message: Message = { id: uid(), from: me.id, to, text: body, createdAt: Date.now(), readAt: null }
+    const message: Message = { id: uid(), from: me.id, to, text: body, image: pic, createdAt: Date.now(), readAt: null }
     return this.apply({ type: 'addMessage', message })
   }
 
@@ -245,14 +246,23 @@ export class LocalBackend implements Backend {
     return { state: this.apply({ type: 'addCluster', cluster }), clusterId: cluster.id }
   }
 
-  async sendClusterMessage(clusterId: string, text: string) {
+  async sendClusterMessage(clusterId: string, text: string, image?: string) {
     const me = this.require()
     const body = text.trim()
-    if (!body) throw new Error('a transmission needs words')
+    const pic = image?.trim() || undefined
+    if (!body && !pic) throw new Error('a transmission needs words or an image')
     const cluster = this.state.clusters?.[clusterId]
     if (!cluster) throw new Error('no such cluster')
     if (!cluster.members.includes(me.id)) throw new Error('you are not in this cluster')
-    const message: Message = { id: uid(), from: me.id, clusterId, text: body, createdAt: Date.now(), readAt: null }
+    const message: Message = {
+      id: uid(),
+      from: me.id,
+      clusterId,
+      text: body,
+      image: pic,
+      createdAt: Date.now(),
+      readAt: null,
+    }
     return this.apply({ type: 'addClusterMessage', message })
   }
 

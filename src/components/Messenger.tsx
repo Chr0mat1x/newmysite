@@ -4,6 +4,7 @@ import { useGalaxy } from '../state/store'
 import type { User } from '../types'
 import { PlanetBadge } from './PlanetBadge'
 import { sfx } from '../lib/audio'
+import { fileToImageDataUrl } from '../lib/image'
 import { timeAgo } from '../lib/math'
 import { useIsMobile } from '../lib/useMedia'
 
@@ -54,6 +55,7 @@ export function Messenger({ open, onClose, initialPeer, onVisit }: Props) {
   const [tab, setTab] = useState<Tab>('direct')
   const [view, setView] = useState<View>({ kind: 'list' })
   const [draft, setDraft] = useState('')
+  const [attachment, setAttachment] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [sending, setSending] = useState(false)
   const [query, setQuery] = useState('')
@@ -61,6 +63,7 @@ export function Messenger({ open, onClose, initialPeer, onVisit }: Props) {
   const [searching, setSearching] = useState(false)
   const isMobile = useIsMobile()
   const scrollRef = useRef<HTMLDivElement>(null)
+  const fileRef = useRef<HTMLInputElement>(null)
 
   // a peer passed in from a planet opens straight onto that thread
   useEffect(() => {
@@ -69,6 +72,8 @@ export function Messenger({ open, onClose, initialPeer, onVisit }: Props) {
       setTab('direct')
       setError(null)
       setQuery('')
+      setDraft('')
+      setAttachment('')
     }
   }, [open, initialPeer])
 
@@ -128,15 +133,32 @@ export function Messenger({ open, onClose, initialPeer, onVisit }: Props) {
 
   const submit = async () => {
     const text = draft.trim()
-    if (!text || sending) return
+    const image = attachment.trim()
+    if ((!text && !image) || sending) return
     if (view.kind === 'list' || view.kind === 'newCluster') return
     setSending(true)
     setError(null)
     const err =
-      view.kind === 'direct' ? await sendMessage(view.peerId, text) : await sendClusterMessage(view.clusterId, text)
+      view.kind === 'direct'
+        ? await sendMessage(view.peerId, text, image || undefined)
+        : await sendClusterMessage(view.clusterId, text, image || undefined)
     setSending(false)
     if (err) setError(err)
-    else setDraft('')
+    else {
+      setDraft('')
+      setAttachment('')
+    }
+  }
+
+  const pickImage = async (file: File | null | undefined) => {
+    if (!file) return
+    setError(null)
+    try {
+      setAttachment(await fileToImageDataUrl(file))
+      sfx.click()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'could not read that image')
+    }
   }
 
   const headerTitle =
@@ -295,16 +317,35 @@ export function Messenger({ open, onClose, initialPeer, onVisit }: Props) {
                             </span>
                           )}
                           <div
-                            className={`rounded-2xl px-3 py-2 text-[13px] leading-relaxed ${
+                            className={`overflow-hidden rounded-2xl text-[13px] leading-relaxed ${
                               mine
                                 ? 'bg-white/[0.14] text-white/90'
                                 : 'border border-white/10 bg-white/[0.04] text-white/80'
                             }`}
                           >
-                            <p className="whitespace-pre-wrap break-words">{m.text}</p>
-                            <span className="mt-1 block font-mono text-[9px] uppercase tracking-[0.14em] text-white/30">
-                              {timeAgo(m.createdAt)}
-                            </span>
+                            {m.image && (
+                              <a
+                                href={m.image}
+                                target="_blank"
+                                rel="noreferrer noopener"
+                                className="block"
+                                aria-label="open image"
+                              >
+                                <img
+                                  src={m.image}
+                                  alt=""
+                                  referrerPolicy="no-referrer"
+                                  onError={(e) => ((e.target as HTMLImageElement).style.opacity = '0.25')}
+                                  className="max-h-64 w-full bg-black/20 object-cover"
+                                />
+                              </a>
+                            )}
+                            <div className="px-3 py-2">
+                              {m.text && <p className="whitespace-pre-wrap break-words">{m.text}</p>}
+                              <span className="mt-1 block font-mono text-[9px] uppercase tracking-[0.14em] text-white/30">
+                                {timeAgo(m.createdAt)}
+                              </span>
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -337,7 +378,36 @@ export function Messenger({ open, onClose, initialPeer, onVisit }: Props) {
                       {error}
                     </p>
                   )}
+                  {attachment && (
+                    <div className="relative mb-2 overflow-hidden rounded-xl border border-white/12">
+                      <img src={attachment} alt="attachment preview" className="max-h-40 w-full object-cover" />
+                      <button
+                        onClick={() => setAttachment('')}
+                        aria-label="remove image"
+                        className="tap absolute right-2 top-2 rounded-lg bg-black/60 px-2.5 py-1 text-[11px] text-white/80 backdrop-blur transition-colors hover:bg-black/80"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  )}
+                  <input
+                    ref={fileRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      void pickImage(e.target.files?.[0])
+                      e.target.value = ''
+                    }}
+                  />
                   <div className="flex items-end gap-2">
+                    <button
+                      onClick={() => fileRef.current?.click()}
+                      aria-label="attach image"
+                      className="tap shrink-0 rounded-xl border border-white/12 px-3 py-2.5 text-white/55 transition-colors hover:border-white/30 hover:text-white active:scale-95"
+                    >
+                      📎
+                    </button>
                     <textarea
                       value={draft}
                       onChange={(e) => setDraft(e.target.value)}
@@ -355,7 +425,7 @@ export function Messenger({ open, onClose, initialPeer, onVisit }: Props) {
                     />
                     <button
                       onClick={() => void submit()}
-                      disabled={!draft.trim() || sending}
+                      disabled={(!draft.trim() && !attachment) || sending}
                       aria-label="send message"
                       className="tap shrink-0 rounded-xl bg-gradient-to-r from-glow via-pulse to-nova px-4 py-2.5 font-display text-[12px] font-bold tracking-wider text-black transition-all hover:brightness-110 active:scale-95 disabled:opacity-30"
                     >
@@ -443,7 +513,7 @@ export function Messenger({ open, onClose, initialPeer, onVisit }: Props) {
                             </div>
                             <div className="truncate text-[11px] text-white/45">
                               {t.last.from === currentUser.id ? 'you: ' : ''}
-                              {t.last.text}
+                              {t.last.text || '📷 photo'}
                             </div>
                           </div>
                           <span className="shrink-0 font-mono text-[9px] uppercase tracking-[0.14em] text-white/25">
@@ -489,7 +559,7 @@ export function Messenger({ open, onClose, initialPeer, onVisit }: Props) {
                               </div>
                               <div className="truncate text-[11px] text-white/45">
                                 {c.members.length} planets
-                                {c.last ? ` · ${c.last.text}` : ' · no lines yet'}
+                                {c.last ? ` · ${c.last.text || '📷 photo'}` : ' · no lines yet'}
                               </div>
                             </div>
                             <span className="shrink-0 font-mono text-[9px] uppercase tracking-[0.14em] text-white/25">

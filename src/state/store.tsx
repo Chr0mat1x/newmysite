@@ -99,7 +99,7 @@ interface Ctx {
   /** How many unread messages the current planet has, across all peers. */
   unreadCount: number
   /** Send a private message to another planet. Returns an error, or null. */
-  sendMessage: (to: string, text: string) => Promise<string | null>
+  sendMessage: (to: string, text: string, image?: string) => Promise<string | null>
   /** Mark a peer's messages to the current planet as read. */
   readThread: (peerId: string) => void
   /** Every cluster the current planet belongs to, newest activity first. */
@@ -113,7 +113,7 @@ interface Ctx {
   /** Create a group conversation. Resolves with the new cluster's id, or an error. */
   createCluster: (name: string, memberIds: string[]) => Promise<{ error: string | null; clusterId: string | null }>
   /** Send a line into a cluster. Returns an error, or null. */
-  sendClusterMessage: (clusterId: string, text: string) => Promise<string | null>
+  sendClusterMessage: (clusterId: string, text: string, image?: string) => Promise<string | null>
   /** Mark a cluster's other members' lines as read. */
   readCluster: (clusterId: string) => void
   /** Leave a cluster. Returns an error, or null. */
@@ -423,10 +423,10 @@ export function GalaxyProvider({ children }: { children: React.ReactNode }) {
   const toggleSave = useCallback((postId: string) => void run(() => backend.toggleSave(postId)), [run])
 
   const sendMessage = useCallback(
-    async (to: string, text: string): Promise<string | null> => {
+    async (to: string, text: string, image?: string): Promise<string | null> => {
       setBusy(true)
       try {
-        const next = await backend.sendMessage(to, text)
+        const next = await backend.sendMessage(to, text, image)
         if (mounted.current) {
           dispatch({ type: 'hydrate', state: next })
           setLastError(null)
@@ -586,22 +586,25 @@ export function GalaxyProvider({ children }: { children: React.ReactNode }) {
     [],
   )
 
-  const sendClusterMessage = useCallback(async (clusterId: string, text: string): Promise<string | null> => {
-    setBusy(true)
-    try {
-      const next = await backend.sendClusterMessage(clusterId, text)
-      if (mounted.current) {
-        dispatch({ type: 'hydrate', state: next })
-        setLastError(null)
+  const sendClusterMessage = useCallback(
+    async (clusterId: string, text: string, image?: string): Promise<string | null> => {
+      setBusy(true)
+      try {
+        const next = await backend.sendClusterMessage(clusterId, text, image)
+        if (mounted.current) {
+          dispatch({ type: 'hydrate', state: next })
+          setLastError(null)
+        }
+        sfx.ping()
+        return null
+      } catch (e) {
+        return message(e)
+      } finally {
+        if (mounted.current) setBusy(false)
       }
-      sfx.ping()
-      return null
-    } catch (e) {
-      return message(e)
-    } finally {
-      if (mounted.current) setBusy(false)
-    }
-  }, [])
+    },
+    [],
+  )
 
   const readCluster = useCallback((clusterId: string) => {
     void backend.readCluster(clusterId).catch(() => {

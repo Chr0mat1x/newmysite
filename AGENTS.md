@@ -126,9 +126,15 @@ the non-seeded planets via the REST API with the service-role key, or
   (`messenger`), the phone toolbar (`mail`), the navigator, ⌘K, and a "send a
   private transmission" button on any real planet's orbit panel. Demo planets
   (`user.mock`) deliberately offer no such button — there is nobody to answer.
-  Backed by `messages` (`20261002120000_messenger.sql`) and `clusters` +
-  `cluster_members` (`20261003120000_clusters.sql`), all RLS-scoped; the anon key
-  reads zero rows and cannot even call the membership helper.
+  A line may carry an **image** as well as text: the 📎 button reads a picked
+  file through `lib/image.ts` (downscaled to a data URL, capped ~1280px/0.82
+  JPEG) and it is stored in `messages.image` (`20261004120000_message_images.sql`
+  adds the column and widens the body check to "body **or** image"). Same shape
+  as a satellite image — a URL/data URL string, never a blob or a storage
+  bucket — so `body` may be empty for an image-only line. Backed by `messages`
+  (`20261002120000_messenger.sql`) and `clusters` + `cluster_members`
+  (`20261003120000_clusters.sql`), all RLS-scoped; the anon key reads zero rows
+  and cannot even call the membership helper.
 - **Finding planets** — the messenger's search box looks up real planets by
   `@handle` or display name through the `planet_directory` RPC. Demo planets are
   returned flagged so the picker can grey them out (they have no reader). The
@@ -153,7 +159,8 @@ The suites live in `tests/` and run against a **live** server, driving
 `playwright-core` (`/usr/bin/chromium`, `--no-sandbox --disable-dev-shm-usage`):
 
 - `tests/core.mjs` (`npm test`) — offline/localStorage build: auth gate, planet
-  sprites, validation, mobile layout.
+  sprites, validation, mobile layout, and an image-only transmission through the
+  real `LocalBackend` (stored image, empty-body line, empty line refused).
 - `tests/supabase.mjs` (`npm run test:supabase`) — the shared galaxy: signup,
   posting, stars, signals, follow, re-login, the anonymous visitor path, account
   settings, and `delete_me`.

@@ -56,6 +56,31 @@ ok('email validation rejects junk', !rules.badEmail && rules.goodEmail)
 // --- layout ----------------------------------------------------------------
 ok('no horizontal overflow on desktop', await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1))
 
+// --- image transmissions (real LocalBackend path) --------------------------
+// Two real planets, then a message that carries only an image. This drives the
+// same code the UI does, not a stub: signUp -> sendMessage -> state.messages.
+const img = await page.evaluate(async () => {
+  const { LocalBackend } = await import('/src/lib/backends/local.ts')
+  const b = new LocalBackend()
+  await b.signUp('img-a@orbit.space', 'orbit pass 9', 'Image Alpha', 1, 'img_alpha')
+  const after = await b.signUp('img-b@orbit.space', 'orbit pass 9', 'Image Beta', 2, 'img_beta')
+  const users = Object.values(after.state.users)
+  const alpha = users.find((u) => u.handle === 'img_alpha')
+  const beta = users.find((u) => u.handle === 'img_beta')
+  const pic = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M8AAAMBAQDJ/pLvAAAAAElFTkSuQmCC'
+  const sent = await b.sendMessage(alpha.id, '', pic)
+  const stored = Object.values(sent.messages).find((m) => m.from === beta.id && m.to === alpha.id)
+  let emptyErr = null
+  try {
+    await b.sendMessage(alpha.id, '', '')
+  } catch (e) {
+    emptyErr = e.message
+  }
+  return { image: stored?.image ?? null, text: stored?.text ?? null, emptyErr }
+})
+ok('an image-only transmission is stored', (img.image ?? '').startsWith('data:image/'), img.text === '' ? 'text=""' : '')
+ok('an empty transmission is refused', !!img.emptyErr, img.emptyErr ?? 'no error raised')
+
 // Backend availability is not this suite's concern: when Supabase is down the
 // shared galaxy still renders through its error state, but requests 500. Only
 // real application errors matter here.

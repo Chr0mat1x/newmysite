@@ -72,17 +72,18 @@ export interface Backend {
   toggleSave(postId: string): Promise<GalaxyState>
   /**
    * Send a private message to another planet. Demo planets have no account, so
-   * they can never be a recipient.
+   * they can never be a recipient. `image` is optional; a message needs text or
+   * an image.
    */
-  sendMessage(to: string, text: string): Promise<GalaxyState>
+  sendMessage(to: string, text: string, image?: string): Promise<GalaxyState>
   /** Mark every message the peer sent the caller as read. */
   readThread(peerId: string): Promise<GalaxyState>
   /** Find planets by @handle or name. Demo planets are included and flagged. */
   searchPlanets(term: string): Promise<User[]>
   /** Create a group conversation; resolves with the fresh galaxy and the new id. */
   createCluster(name: string, memberIds: string[]): Promise<{ state: GalaxyState; clusterId: string }>
-  /** Send a line into a cluster. */
-  sendClusterMessage(clusterId: string, text: string): Promise<GalaxyState>
+  /** Send a line into a cluster, optionally with an image. */
+  sendClusterMessage(clusterId: string, text: string, image?: string): Promise<GalaxyState>
   /** Mark the cluster's other members' lines as read by the caller. */
   readCluster(clusterId: string): Promise<GalaxyState>
   /** Leave a cluster; the caller's own lines there are withdrawn. */
