@@ -24,6 +24,7 @@
     "test:clusters": "node tests/clusters.mjs",
     "test:messenger": "node tests/messenger.mjs",
     "test:notifications": "node tests/notifications.mjs",
+    "test:push": "node tests/push.mjs",
     "build:online": "vite build --mode online"
   },
   "dependencies": {
@@ -44,6 +45,7 @@
     "postcss": "^8.4.39",
     "tailwindcss": "^3.4.7",
     "typescript": "^5.5.4",
-    "vite": "^5.3.5"
+    "vite": "^5.3.5",
+    "web-push": "^3.6.7"
   }
 }

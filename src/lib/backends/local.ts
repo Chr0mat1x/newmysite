@@ -280,6 +280,11 @@ export class LocalBackend implements Backend {
     return this.apply({ type: 'leaveCluster', userId: me.id, clusterId })
   }
 
+  // No server in the offline demo, so there is nothing to push to. Keep the
+  // interface whole so the store can call these unconditionally.
+  async savePushSubscription() {}
+  async clearPushSubscriptions() {}
+
   async refresh() {
     return this.state
   }

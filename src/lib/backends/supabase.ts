@@ -14,6 +14,7 @@ import { appOrigin, supabase } from '../supabase'
 import { buildState, toUser } from '../mappers'
 import { planetSeed } from '../seed'
 import { handleFromIdentity, normalizeEmail } from '../auth'
+import { pushConfigured } from '../push'
 import type { Backend, SignUpResult } from './types'
 
 /**
@@ -352,8 +353,13 @@ export class SupabaseBackend implements Backend {
     if (to === me) throw new Error('you cannot message your own planet')
     // RLS would refuse a forged sender anyway; this turns that into a clear
     // message instead of an opaque policy violation.
-    const { error } = await this.client.from('messages').insert({ sender: me, recipient: to, body, image: pic })
+    const { data, error } = await this.client
+      .from('messages')
+      .insert({ sender: me, recipient: to, body, image: pic })
+      .select('id')
+      .single()
     if (error) throw new Error(error.message)
+    void this.notifyPush(data.id)
     return this.loadAll()
   }
 
@@ -418,10 +424,13 @@ export class SupabaseBackend implements Backend {
     const body = text.trim()
     const pic = image?.trim() || null
     if (!body && !pic) throw new Error('a transmission needs words or an image')
-    const { error } = await this.client
+    const { data, error } = await this.client
       .from('messages')
       .insert({ sender: me, cluster: clusterId, body, image: pic })
+      .select('id')
+      .single()
     if (error) throw new Error(error.message)
+    void this.notifyPush(data.id)
     return this.loadAll()
   }
 
@@ -456,6 +465,39 @@ export class SupabaseBackend implements Backend {
       .eq('planet', me)
     if (error) throw new Error(error.message)
     return this.loadAll()
+  }
+
+  async savePushSubscription(payload: { endpoint: string; p256dh: string; auth: string }) {
+    const me = await this.requireUserId()
+    // upsert on the endpoint: re-subscribing on the same device must update the
+    // keys, not leave a dead row behind
+    const { error } = await this.client
+      .from('push_subscriptions')
+      .upsert(
+        { planet: me, endpoint: payload.endpoint, p256dh: payload.p256dh, auth: payload.auth },
+        { onConflict: 'endpoint' },
+      )
+    if (error) throw new Error(error.message)
+  }
+
+  async clearPushSubscriptions() {
+    const me = await this.requireUserId()
+    const { error } = await this.client.from('push_subscriptions').delete().eq('planet', me)
+    if (error) throw new Error(error.message)
+  }
+
+  /**
+   * Ask the server to fan out a Web Push for a message we just inserted. Best
+   * effort and fire-and-forget: the message is already delivered, and a push
+   * that fails must never surface as a send error.
+   */
+  private async notifyPush(messageId: string) {
+    if (!pushConfigured() || !supabase) return
+    try {
+      await supabase.functions.invoke('send-push', { body: { messageId } })
+    } catch {
+      /* the recipient still gets it on next refresh */
+    }
   }
 
   async refresh() {

@@ -95,6 +95,13 @@ export interface Backend {
   readCluster(clusterId: string): Promise<GalaxyState>
   /** Leave a cluster; the caller's own lines there are withdrawn. */
   leaveCluster(clusterId: string): Promise<GalaxyState>
+  /**
+   * Remember a Web Push subscription for the signed-in planet, so the server
+   * can reach the device while the app is closed. Idempotent per endpoint.
+   */
+  savePushSubscription(payload: { endpoint: string; p256dh: string; auth: string }): Promise<void>
+  /** Forget every push subscription for the signed-in planet. */
+  clearPushSubscriptions(): Promise<void>
   /** Re-read the galaxy from the source. */
   refresh(): Promise<GalaxyState>
   /** Discard local state and rebuild — the offline "reset galaxy" affordance. */

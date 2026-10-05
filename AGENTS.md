@@ -289,6 +289,51 @@ every 15s (the pre-existing 60s tick stays for supernova decay) and re-reads on
 `visibilitychange`/`focus`. Local mode skips the fast poll — there is no remote
 change to see. The suite is `npm run test:notifications` (offline backend).
 
+### Web Push (closed-app alerts)
+
+The third layer reaches a *closed* app over real Web Push, no Firebase and no
+Google account: VAPID only. The pieces:
+
+- `public/sw.js` receives `push` and raises a notification; it also focuses or
+  opens the app on click. It is served from the app root, which is what gives it
+  scope over the whole app.
+- `src/lib/push.ts` registers the worker (`registerServiceWorker` in
+  `src/main.tsx`, so it is in place from first load) and creates the subscription
+  against `VITE_VAPID_PUBLIC_KEY`. It is inert when that key is blank.
+- `supabase/migrations/20261006120000_push.sql` adds `public.push_subscriptions`
+  (one row per device, owner-only RLS).
+- `supabase/functions/send-push/` fans out to the recipients of a just-inserted
+  message. The client calls it right after insert (see `notifyPush` in the
+  Supabase backend), fire-and-forget. The function re-reads the message *as the
+  caller* before sending, so a client cannot push on another planet's behalf,
+  and prunes subscriptions the push service reports gone (404/410).
+
+Enabling the panel toggle asks for permission, mirrors activity while hidden,
+and registers the subscription; `store.tsx` re-registers it on every load
+because a subscription can go stale without telling anyone.
+
+Secrets (Management API, not the dashboard): `VAPID_PUBLIC_KEY`,
+`VAPID_PRIVATE_KEY`, `PUBLIC_APP_URL`. Generate a pair with
+`node -e 'console.log(require("web-push").generateVAPIDKeys())'`; the public half
+goes in `.env.online`, the private half **never** leaves the function secrets.
+Deploy with `npx supabase functions deploy send-push --project-ref <ref>
+--no-verify-jwt`.
+
+**The APK cannot do this.** Web Push is not available in an Android WebView
+(`PushManager` is undefined; the push API is Chromium-only, not WebView), so no
+amount of backend work makes the Capacitor shell receive a push. This is why the
+Firebase route was abandoned and why the deliverable is the *installed PWA*:
+open the site in Chrome and "Add to Home screen". Installed that way it gets
+real Telegram-style notifications with the app closed. In-app alerts still work
+everywhere, including the APK.
+
+The browser side is verified by `npm run test:push` (needs a dev server started
+with `VITE_VAPID_PUBLIC_KEY` set). It uses a **persistent** Chrome profile:
+Chrome refuses the Push API in incognito and there is no way to feature-detect
+that, so Playwright's default context can never exercise it. `tests/push-delivery.mjs`
+goes further and sends a real push through the push service to prove delivery.
+
+
 ### Mail
 
 There is no SMTP server locally: Supabase hands mail to a catcher (Inbucket) on

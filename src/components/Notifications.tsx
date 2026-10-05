@@ -7,8 +7,6 @@ import { useIsMobile } from '../lib/useMedia'
 import {
   loadNotifyPrefs,
   notificationsSupported,
-  requestSystemPermission,
-  saveNotifyPrefs,
   systemPermission,
   type NotifyPrefs,
 } from '../lib/notifications'
@@ -40,7 +38,7 @@ export function Notifications({
   onVisit: (id: string) => void
   onMessage: (peerId: string) => void
 }) {
-  const { activity, markActivityRead, userById } = useGalaxy()
+  const { activity, markActivityRead, userById, enableSystemNotifications, disableSystemNotifications } = useGalaxy()
   const isMobile = useIsMobile()
   const [prefs, setPrefs] = useState<NotifyPrefs>(() => loadNotifyPrefs())
   const [permission, setPermission] = useState(() => systemPermission())
@@ -51,24 +49,19 @@ export function Notifications({
   }, [open, markActivityRead])
 
   const enableSystem = async () => {
-    const result = await requestSystemPermission()
-    setPermission(result)
-    const next = { ...prefs, system: result === 'granted' }
-    setPrefs(next)
-    saveNotifyPrefs(next)
+    await enableSystemNotifications()
+    setPermission(systemPermission())
+    setPrefs(loadNotifyPrefs())
   }
 
   const toggleSystem = () => {
     if (prefs.system) {
-      const next = { ...prefs, system: false }
-      setPrefs(next)
-      saveNotifyPrefs(next)
+      void disableSystemNotifications().then(() => setPrefs(loadNotifyPrefs()))
       return
     }
     if (permission === 'granted') {
-      const next = { ...prefs, system: true }
-      setPrefs(next)
-      saveNotifyPrefs(next)
+      // permission already granted: just turn the mirror + subscription back on
+      void enableSystemNotifications().then(() => setPrefs(loadNotifyPrefs()))
       return
     }
     void enableSystem()
@@ -80,7 +73,7 @@ export function Notifications({
       : permission === 'denied'
         ? 'notifications are blocked in your browser settings'
         : prefs.system
-          ? 'we will alert you about new transmissions while the app is closed'
+          ? 'we will alert you about new transmissions even when the app is closed'
           : 'turn on to get alerts about new transmissions'
 
   return (

@@ -6,7 +6,8 @@ import { SupabaseBackend } from '../lib/backends/supabase'
 import type { Backend } from '../lib/backends/types'
 import { isRemote, recovery, consumeEmailLink, type LinkStatus } from '../lib/supabase'
 import { sfx } from '../lib/audio'
-import { loadNotifyPrefs, showSystemNotification } from '../lib/notifications'
+import { loadNotifyPrefs, showSystemNotification, saveNotifyPrefs, requestSystemPermission } from '../lib/notifications'
+import { pushSupported, subscribePush, unsubscribePush } from '../lib/push'
 
 // Pick the backend once, at module load. `isRemote` is decided by whether the
 // VITE_SUPABASE_* env vars were present at build time.
@@ -120,6 +121,10 @@ interface Ctx {
   notifyCount: number
   /** Mark every activity row read — clears the bell badge. */
   markActivityRead: () => void
+  /** Turn on OS-level alerts: permission, in-app mirror, and a push subscription. */
+  enableSystemNotifications: () => Promise<void>
+  /** Turn OS-level alerts off and drop the push subscription. */
+  disableSystemNotifications: () => Promise<void>
   /** Find planets by @handle or name. Resolves to an empty list on failure. */
   searchPlanets: (term: string) => Promise<User[]>
   /** Create a group conversation. Resolves with the new cluster's id, or an error. */
@@ -700,6 +705,54 @@ export function GalaxyProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem('orbit.seen', String(now))
   }, [])
 
+  // Enabling "system notifications" means three things: ask for permission,
+  // mirror activity into OS notifications while the app is hidden, and register
+  // a push subscription so the server can reach a *closed* app. Only the first
+  // two can fail gracefully; push is best-effort and simply stays off.
+  const enableSystemNotifications = useCallback(async () => {
+    const result = await requestSystemPermission()
+    const next = { ...loadNotifyPrefs(), system: result === 'granted' }
+    saveNotifyPrefs(next)
+    if (!pushSupported()) return
+    const payload = await subscribePush()
+    if (!payload) return
+    try {
+      await backend.savePushSubscription(payload)
+    } catch {
+      /* the in-app bell still works; a dead subscription is not worth an error */
+    }
+  }, [])
+
+  const disableSystemNotifications = useCallback(async () => {
+    saveNotifyPrefs({ ...loadNotifyPrefs(), system: false })
+    await unsubscribePush()
+    try {
+      await backend.clearPushSubscriptions()
+    } catch {
+      /* nothing to clean up remotely */
+    }
+  }, [])
+
+  // A returning planet keeps a live subscription, but it can go stale (the
+  // server dropped it, the key rotated). Re-registering on load is idempotent
+  // and cheap, so the row never rots.
+  useEffect(() => {
+    if (!currentUser || !loadNotifyPrefs().system || !pushSupported()) return
+    let cancelled = false
+    void (async () => {
+      const payload = await subscribePush()
+      if (cancelled || !payload) return
+      try {
+        await backend.savePushSubscription(payload)
+      } catch {
+        /* best-effort */
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [currentUser])
+
   // New private message while the app is open -> system notification (the bell
   // badge and feed already cover the in-app case). `myMessages` is read via a
   // ref-free effect so this only fires on a genuinely new message id.
@@ -852,6 +905,8 @@ export function GalaxyProvider({ children }: { children: React.ReactNode }) {
     activity,
     notifyCount,
     markActivityRead,
+    enableSystemNotifications,
+    disableSystemNotifications,
     searchPlanets,
     createCluster,
     sendClusterMessage,
