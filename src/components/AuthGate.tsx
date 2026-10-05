@@ -5,7 +5,7 @@ import { useGalaxy } from '../state/store'
 import { sfx } from '../lib/audio'
 import { planetSeed } from '../lib/seed'
 import { PASSWORD_MIN, STRENGTH_LABELS, strengthOf } from '../lib/auth'
-import { isRemote, recovery } from '../lib/supabase'
+import { isRemote, recovery, mailLink } from '../lib/supabase'
 
 /** How many procedural worlds the launch screen offers to pick from. */
 const VARIANTS = [0, 1, 2, 3, 4, 5, 6, 7]
@@ -44,6 +44,9 @@ export function AuthGate() {
   // unix ms when the resend button unlocks again; 0 means "ready now"
   const [resendAt, setResendAt] = useState(0)
   const [now, setNow] = useState(Date.now())
+  const [linkError, setLinkError] = useState(mailLink.error)
+
+  useEffect(() => mailLink.subscribe(() => setLinkError(mailLink.error)), [])
 
   // tick only while a cooldown is pending, so the button label can count down
   useEffect(() => {
@@ -171,6 +174,12 @@ export function AuthGate() {
           <p className="mx-auto mt-3 max-w-xs text-[13px] leading-relaxed text-white/55 sm:mt-4 sm:text-sm">
             Every user is a planet. Every post orbits them. Fly through the galaxy instead of scrolling a feed.
           </p>
+          {linkError && (
+            <p role="alert" className="mx-auto mt-4 max-w-xs rounded-xl border border-amber-300/25 bg-amber-300/10 px-3 py-2 text-[12px] leading-relaxed text-amber-100/90">
+              That confirmation link is no longer valid — it may have expired or already been opened. Sign in, or
+              create your planet again to get a fresh link.
+            </p>
+          )}
         </div>
 
         <AnimatePresence mode="wait">

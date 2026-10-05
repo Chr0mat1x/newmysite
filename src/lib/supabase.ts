@@ -56,6 +56,26 @@ supabase?.auth.onAuthStateChange((event) => {
 })
 
 /**
+ * Set when a `#token_hash` mail link was present but the exchange failed —
+ * typically an expired link, or one already spent by an earlier click. The auth
+ * gate shows it so a dead link does not look like an ordinary signed-out visit.
+ */
+export const mailLink = {
+  error: null as string | null,
+  listeners: new Set<() => void>(),
+  set(error: string | null) {
+    this.error = error
+    for (const listener of this.listeners) listener()
+  },
+  subscribe(listener: () => void) {
+    this.listeners.add(listener)
+    return () => {
+      this.listeners.delete(listener)
+    }
+  },
+}
+
+/**
  * The verification types Supabase issues in mail links. Kept in sync with the
  * `type=` the templates append.
  */
@@ -73,8 +93,7 @@ type OtpType = 'signup' | 'invite' | 'magiclink' | 'recovery' | 'email_change' |
  * the user's own tab.
  *
  * The hash is stripped before the request so a reload cannot replay a spent
- * token. Failures are swallowed — the store reports the resulting signed-out
- * state, and a spent link is indistinguishable from an expired one anyway.
+ * token.
  */
 export async function consumeEmailLink(): Promise<void> {
   if (!supabase) return
@@ -86,9 +105,10 @@ export async function consumeEmailLink(): Promise<void> {
   if (!token_hash || !type) return
   history.replaceState(null, '', window.location.pathname + window.location.search)
   try {
-    await supabase.auth.verifyOtp({ type, token_hash })
-  } catch {
-    /* signed out is the right outcome for an expired or already-used link */
+    const { error } = await supabase.auth.verifyOtp({ type, token_hash })
+    if (error) mailLink.set(error.message)
+  } catch (e) {
+    mailLink.set(e instanceof Error ? e.message : 'this link is no longer valid')
   }
 }
 
