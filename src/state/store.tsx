@@ -4,7 +4,7 @@ import { SUPERNOVA_TTL } from '../types'
 import { LocalBackend } from '../lib/backends/local'
 import { SupabaseBackend } from '../lib/backends/supabase'
 import type { Backend } from '../lib/backends/types'
-import { isRemote, recovery, type LinkStatus } from '../lib/supabase'
+import { isRemote, recovery, consumeEmailLink, type LinkStatus } from '../lib/supabase'
 import { sfx } from '../lib/audio'
 
 // Pick the backend once, at module load. `isRemote` is decided by whether the
@@ -196,9 +196,14 @@ export function GalaxyProvider({ children }: { children: React.ReactNode }) {
   // initial load — `ready` flips once and stays, so the splash never unmounts the
   // auth form mid-request (which would wipe a failed sign-in's error message)
   useEffect(() => {
-    void run(() => backend.init()).finally(() => {
-      if (mounted.current) setReady(true)
-    })
+    void (async () => {
+      // a `#token_hash=…` mail link has to be exchanged for a session before the
+      // first read, or the app would load signed out and drop the user
+      await consumeEmailLink()
+      await run(() => backend.init()).finally(() => {
+        if (mounted.current) setReady(true)
+      })
+    })()
   }, [run])
 
   // supernova decay & fresh signals — re-read periodically from the source

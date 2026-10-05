@@ -485,6 +485,18 @@ released APK runs on-device and survives the sandbox.
 
 ### Email registration on the hosted site
 
+Mail links must point at the app with `#token_hash=…`, never at Supabase's
+`/auth/v1/verify`. Yandex and Gmail fetch every link in a message to scan it,
+and that GET consumes the one-time token, so the user lands on the app signed
+out with `otp_expired` — the link "just goes to the site". The templates
+(`mailer_templates_*_content`, patched through the Management API) therefore
+build `{{ .RedirectTo }}#token_hash={{ .TokenHash }}&type=…`, and
+`consumeEmailLink()` in `src/lib/supabase.ts` exchanges the hash with
+`verifyOtp` inside the user's own tab. A URL fragment is never sent to the
+server, so the scanner only ever downloads a static page and the token survives
+until the real click. The hash is stripped before the request so a reload can't
+replay a spent token.
+
 Accounts and email confirmation need a **server that outlives the sandbox**, so
 the offline Pages build cannot provide them — it has no backend at all. To turn
 them on for `chr0mat1x.github.io/orbit/`:

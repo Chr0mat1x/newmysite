@@ -55,6 +55,43 @@ supabase?.auth.onAuthStateChange((event) => {
   if (event === 'PASSWORD_RECOVERY') recovery.set(true)
 })
 
+/**
+ * The verification types Supabase issues in mail links. Kept in sync with the
+ * `type=` the templates append.
+ */
+type OtpType = 'signup' | 'invite' | 'magiclink' | 'recovery' | 'email_change' | 'email'
+
+/**
+ * Finish a mail link that carries `#token_hash=…&type=…`.
+ *
+ * The default Supabase link points at `/auth/v1/verify`, which consumes the
+ * one-time token the moment *anything* fetches it — and mail providers
+ * (Yandex, Gmail) prefetch links to scan them, so the token is already spent by
+ * the time the user clicks and they land on the app signed out. Linking to the
+ * app itself with the hash avoids that: the fragment never leaves the browser,
+ * so the scanner's fetch is just a static page, and this runs the exchange in
+ * the user's own tab.
+ *
+ * The hash is stripped before the request so a reload cannot replay a spent
+ * token. Failures are swallowed — the store reports the resulting signed-out
+ * state, and a spent link is indistinguishable from an expired one anyway.
+ */
+export async function consumeEmailLink(): Promise<void> {
+  if (!supabase) return
+  const raw = window.location.hash.replace(/^#/, '')
+  if (!raw) return
+  const params = new URLSearchParams(raw)
+  const token_hash = params.get('token_hash')
+  const type = params.get('type') as OtpType | null
+  if (!token_hash || !type) return
+  history.replaceState(null, '', window.location.pathname + window.location.search)
+  try {
+    await supabase.auth.verifyOtp({ type, token_hash })
+  } catch {
+    /* signed out is the right outcome for an expired or already-used link */
+  }
+}
+
 export const isRemote = supabase !== null
 
 /** Absolute base of the Supabase API, for building verify links in the UI. */
