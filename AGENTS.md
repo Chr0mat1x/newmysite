@@ -391,8 +391,11 @@ Online config, all set through the Management API (no dashboard clicking):
   `public/brand/` served off Pages, black pill button, `{{ .ConfirmationURL }}`.
   A signup now returns no session until the link is opened — the app already
   renders its "confirm your address" screen for that, no client change needed.
-  The built-in sender (2/hour, project-team addresses only) was unusable for
-  real users, which is why this replaced it.
+  `detectSessionInUrl` (already on) consumes the `#access_token=…` the link
+  redirects with, so the click lands the user signed in.
+  `rate_limit_email_sent` was raised from 2 to 60/hour: the default throttled
+  the third signup in an hour. The built-in sender (2/hour, project-team
+  addresses only) was unusable for real users, which is why this replaced it.
 - `.env.online` (gitignored) holds the project URL and the anon key;
   `android:apk:online` bakes them into the WebView.
 
