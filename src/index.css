@@ -24,6 +24,9 @@
     font-family: 'Inter', system-ui, sans-serif;
     overscroll-behavior: none;
     -webkit-font-smoothing: antialiased;
+    /* iOS Safari inflates text in landscape and when the address bar collapses */
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
   }
 
   ::selection {
@@ -116,4 +119,16 @@
 
 .text-glow {
   text-shadow: 0 0 14px rgba(255, 255, 255, 0.6);
+}
+
+/* iOS Safari zooms the whole page when a focused field's font is under 16px,
+   and never zooms back out. A few compact controls (messenger, inline email)
+   use 12–13px, so on iOS only we pin every field to 16px. `-webkit-touch-callout`
+   is an iOS-only feature query, so Android and desktop keep their tighter type. */
+@supports (-webkit-touch-callout: none) {
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
 }
