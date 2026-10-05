@@ -374,9 +374,14 @@ and prefers `:visible` locators — the footer and mobile menu both render
 **ORBIT is live against a hosted backend.** Cloud project `hjxgljqjnllxgrqedjyj`
 (region eu-west-2) holds the schema; the online build is deployed at
 <https://chr0mat1x.github.io/orbit/> and the Android APK is attached to the
-`v1.3.0` GitHub release (real email signup, branded mail, the ORBIT launcher
-icon and favicon). Two phones that install that APK, or two browsers on
-that URL, share one galaxy: planets, posts, groups and private messages.
+`v1.3.1` GitHub release (real email signup, branded mail, the ORBIT launcher
+icon and favicon, and code-based confirmation). Two phones that install that
+APK, or two browsers on that URL, share one galaxy: planets, posts, groups and
+private messages.
+
+The released APK is built with `npm run android:apk:online` (`.env.online`,
+absolute Supabase URL) so it is a *client of the live galaxy*, not the offline
+demo — the confirmation-code field only exists in this online flavour.
 
 Online config, all set through the Management API (no dashboard clicking):
 
