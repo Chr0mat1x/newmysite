@@ -498,6 +498,17 @@ them on for `chr0mat1x.github.io/orbit/`:
    out of the repo keeps the project ref private.
 3. `ORBIT_ONLINE=1 npm run deploy:pages`.
 
+### iOS
+
+The site is a proper iOS web app: `viewport-fit=cover` plus `env(safe-area-inset-*)`
+utilities keep the notch and home indicator clear, `100dvh` tracks Safari's
+collapsing chrome, and `apple-mobile-web-app-*` meta tags with
+`public/manifest.webmanifest` let Safari add ORBIT to the home screen and launch
+it full-screen. Safari also zooms the page whenever a focused field's font is
+under 16px and never zooms back, so `src/index.css` pins `input, textarea, select`
+to 16px inside `@supports (-webkit-touch-callout: none)` — iOS only, so Android
+and desktop keep their tighter 12–13px controls.
+
 The online build bakes an **absolute** Supabase URL, so it never relies on the
 dev-server `/sb` proxy. Without a hosted project the main site stays on the
 offline demo; `.env.online` is gitignored, so this step is the only thing that
