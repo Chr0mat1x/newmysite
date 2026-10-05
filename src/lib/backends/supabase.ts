@@ -126,6 +126,27 @@ export class SupabaseBackend implements Backend {
     return null
   }
 
+  /**
+   * Confirm with the numeric code from the mail. `verifyOtp` with `email` +
+   * `token` is the code path; it needs no link, so provider prefetch and a
+   * stale cached bundle cannot interfere.
+   */
+  async verifyEmailCode(
+    email: string,
+    code: string,
+  ): Promise<{ error: string | null; state: GalaxyState | null }> {
+    const token = code.replace(/\D/g, '')
+    if (token.length < 6) return { error: 'enter the code from the email', state: null }
+    const { data, error } = await this.client.auth.verifyOtp({
+      type: 'signup',
+      email: normalizeEmail(email),
+      token,
+    })
+    if (error) return { error: this.friendlyAuthError(error.message), state: null }
+    this.currentUserId = data.user?.id ?? data.session?.user.id ?? null
+    return { error: null, state: await this.loadAll() }
+  }
+
   async signIn(email: string, password: string) {
     const { data, error } = await this.client.auth.signInWithPassword({
       email: normalizeEmail(email),

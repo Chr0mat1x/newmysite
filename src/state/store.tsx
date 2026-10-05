@@ -60,6 +60,11 @@ interface Ctx {
   ) => Promise<string | null>
   /** Re-send the signup confirmation mail. Returns an error, or null. */
   resendConfirmation: (email: string) => Promise<string | null>
+  /**
+   * Confirm the pending address with the numeric code from the mail. Returns an
+   * error, or null on success (which also signs the planet in).
+   */
+  verifyEmailCode: (email: string, code: string) => Promise<string | null>
   /** Enter as an existing planet without credentials (seeded demo accounts). */
   loginAs: (userId: string) => Promise<string | null>
   /** Attach an email + password to the current account. Returns an error or null. */
@@ -292,6 +297,27 @@ export function GalaxyProvider({ children }: { children: React.ReactNode }) {
     setBusy(true)
     try {
       return await backend.resendConfirmation(email)
+    } catch (e) {
+      return message(e)
+    } finally {
+      setBusy(false)
+    }
+  }, [])
+
+  /**
+   * Confirm with the code from the mail. On success the account is verified and
+   * signed in, so the pending-confirmation screen can be dropped.
+   */
+  const verifyEmailCode = useCallback(async (email: string, code: string): Promise<string | null> => {
+    setBusy(true)
+    try {
+      const { error, state } = await backend.verifyEmailCode(email, code)
+      if (error || !state) return error ?? 'could not confirm that code'
+      setPendingConfirmation(null)
+      dispatch({ type: 'hydrate', state })
+      if (isRemote) setLinkStatus('online')
+      sfx.launch()
+      return null
     } catch (e) {
       return message(e)
     } finally {
@@ -655,6 +681,7 @@ export function GalaxyProvider({ children }: { children: React.ReactNode }) {
     login,
     signUp,
     resendConfirmation,
+    verifyEmailCode,
     loginAs,
     linkEmail,
     resetPassword,

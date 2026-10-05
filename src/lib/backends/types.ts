@@ -33,6 +33,13 @@ export interface Backend {
   ): Promise<SignUpResult>
   /** Re-send the signup confirmation mail. */
   resendConfirmation(email: string): Promise<string | null>
+  /**
+   * Confirm an address with the numeric code from the mail instead of its link.
+   * Mail links keep dying to provider prefetch and stale browser caches; the
+   * code is typed by hand, so it cannot be spent before the user uses it.
+   * Resolves with the fresh galaxy on success, or an error message.
+   */
+  verifyEmailCode(email: string, code: string): Promise<{ error: string | null; state: GalaxyState | null }>
   /** Sign in with email + password. */
   signIn(email: string, password: string): Promise<GalaxyState>
   /**

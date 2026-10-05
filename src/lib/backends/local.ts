@@ -68,6 +68,10 @@ export class LocalBackend implements Backend {
     return 'this build is offline — there is no confirmation mail to send'
   }
 
+  async verifyEmailCode(): Promise<{ error: string | null; state: null }> {
+    return { error: 'this build is offline — there is no email code to enter', state: null }
+  }
+
   async signIn(email: string, password: string) {
     const mail = normalizeEmail(email)
     if (!isValidEmail(mail)) throw new Error('enter a valid email address')

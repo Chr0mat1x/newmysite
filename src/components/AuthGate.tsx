@@ -23,6 +23,7 @@ export function AuthGate() {
     resetPassword,
     setPassword: savePassword,
     resendConfirmation,
+    verifyEmailCode,
     refresh,
     users,
     postsOf,
@@ -45,6 +46,7 @@ export function AuthGate() {
   const [resendAt, setResendAt] = useState(0)
   const [now, setNow] = useState(Date.now())
   const [linkError, setLinkError] = useState(mailLink.error)
+  const [code, setCode] = useState('')
 
   useEffect(() => mailLink.subscribe(() => setLinkError(mailLink.error)), [])
 
@@ -137,6 +139,13 @@ export function AuthGate() {
       return
     }
     err = await login(email, password)
+    setError(err)
+  }
+
+  /** Confirm the pending address with the numeric code from the mail. */
+  const submitCode = async () => {
+    setError(null)
+    const err = await verifyEmailCode(pendingConfirmation ?? email, code)
     setError(err)
   }
 
@@ -242,6 +251,29 @@ export function AuthGate() {
                     Nothing yet? Give it a minute and check your spam folder — the link comes from an ORBIT address, not
                     from a person.
                   </p>
+                  {isRemote && (
+                    <div className="space-y-2 rounded-xl border border-white/12 bg-white/[0.04] p-3">
+                      <p className="text-[12px] leading-relaxed text-white/60">
+                        The link can fail on some phones. The email also shows a <span className="text-white/85">code</span> —
+                        type it here instead:
+                      </p>
+                      <input
+                        inputMode="numeric"
+                        autoComplete="one-time-code"
+                        value={code}
+                        onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                        placeholder="12345678"
+                        className="w-full rounded-xl border border-white/15 bg-black/40 px-3 py-2.5 text-center font-mono text-lg tracking-[0.3em] text-white placeholder-white/25 outline-none focus:border-white/40"
+                      />
+                      <button
+                        onClick={() => void submitCode()}
+                        disabled={busy || code.replace(/\D/g, '').length < 6}
+                        className="tap w-full rounded-xl border border-white/20 bg-white/[0.06] py-2.5 font-display text-[13px] font-semibold tracking-wider text-white/85 transition-all hover:border-white/45 hover:text-white active:scale-[0.98] disabled:opacity-30"
+                      >
+                        {busy ? 'CONFIRMING…' : 'CONFIRM WITH CODE'}
+                      </button>
+                    </div>
+                  )}
                   {!isRemote && (
                     <p className="text-[12px] leading-relaxed text-white/45">
                       This build is fully offline — accounts live only in this browser, so there is no email to send.

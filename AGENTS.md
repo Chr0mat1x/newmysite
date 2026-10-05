@@ -497,6 +497,18 @@ server, so the scanner only ever downloads a static page and the token survives
 until the real click. The hash is stripped before the request so a reload can't
 replay a spent token.
 
+### Confirming an address by code
+
+Links to the app (`#token_hash`) survive provider prefetch but still fail for
+some users: a stale cached `index.html` (GitHub Pages sends `cache-control:
+max-age=600`) runs a build that predates `consumeEmailLink`, so the click
+"just opens the site" signed out. The confirmation screen therefore also
+offers the numeric code from the mail — `verifyEmailCode` calls `verifyOtp`
+with `{ type: 'signup', email, token }`, which no link, cache or scanner can
+break. The confirmation template prints `{{ .Token }}` under the button, and
+`mailLink.error` surfaces a dead link's reason instead of a silent sign-in
+screen.
+
 Accounts and email confirmation need a **server that outlives the sandbox**, so
 the offline Pages build cannot provide them — it has no backend at all. To turn
 them on for `chr0mat1x.github.io/orbit/`:
