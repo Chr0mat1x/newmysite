@@ -261,6 +261,34 @@ server's own origin:
 - A hosted Supabase project short-circuits all of this: an absolute
   `VITE_SUPABASE_URL` is used as-is, and there is no catcher to show.
 
+## Notifications
+
+Two layers, one source. `activity` in `src/state/store.tsx` folds everything that
+happened *to* the current planet — unread direct messages, unread cluster lines,
+signals on your satellites, and other planets' supernovae — into one list behind
+the header bell (`src/components/Notifications.tsx`). Tapping a row opens the
+thread for a message, or flies you to the actor for a signal or nova.
+
+Read state is deliberately cheap: messages and cluster lines already carry
+`readAt`, so those rows disappear when the thread is opened. Signals and
+supernovae are public facts with no per-recipient flag, so they use a single
+high-water mark (`orbit.seen` in localStorage) — opening the bell stamps it and
+the badge clears. Do not add a per-row read flag for those two; it would mean a
+write on every open for no benefit.
+
+The second layer is the OS notification (`src/lib/notifications.ts`), behind an
+opt-in toggle in the panel. It fires only when a *new* private message arrives
+while the document is hidden — a visible app already shows its own toast, and
+doubling up is noise. Every Web Notification call is defensive: iOS exposes the
+API only to an installed web app (16.4+), and browsers throw on construction
+without permission, so a missing permission or API must degrade to the bell
+badge, never to a crash.
+
+For messages to land while the app is open, the store polls `backend.refresh()`
+every 15s (the pre-existing 60s tick stays for supernova decay) and re-reads on
+`visibilitychange`/`focus`. Local mode skips the fast poll — there is no remote
+change to see. The suite is `npm run test:notifications` (offline backend).
+
 ### Mail
 
 There is no SMTP server locally: Supabase hands mail to a catcher (Inbucket) on

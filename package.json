@@ -23,6 +23,7 @@
     "deploy:pages": "bash tools/deploy-pages.sh",
     "test:clusters": "node tests/clusters.mjs",
     "test:messenger": "node tests/messenger.mjs",
+    "test:notifications": "node tests/notifications.mjs",
     "build:online": "vite build --mode online"
   },
   "dependencies": {

@@ -6,6 +6,7 @@ import { SupabaseBackend } from '../lib/backends/supabase'
 import type { Backend } from '../lib/backends/types'
 import { isRemote, recovery, consumeEmailLink, type LinkStatus } from '../lib/supabase'
 import { sfx } from '../lib/audio'
+import { loadNotifyPrefs, showSystemNotification } from '../lib/notifications'
 
 // Pick the backend once, at module load. `isRemote` is decided by whether the
 // VITE_SUPABASE_* env vars were present at build time.
@@ -113,6 +114,12 @@ interface Ctx {
   clusterMessages: (clusterId: string) => Message[]
   /** How many unread cluster lines the current planet has, across all clusters. */
   clusterUnreadCount: number
+  /** The merged activity feed behind the bell, newest first. */
+  activity: Activity[]
+  /** Unread activity count (messages, clusters, signals, supernovae). */
+  notifyCount: number
+  /** Mark every activity row read — clears the bell badge. */
+  markActivityRead: () => void
   /** Find planets by @handle or name. Resolves to an empty list on failure. */
   searchPlanets: (term: string) => Promise<User[]>
   /** Create a group conversation. Resolves with the new cluster's id, or an error. */
@@ -131,6 +138,17 @@ export interface Thread {
   peer: User
   last: Message
   unread: number
+}
+
+/** One line in the activity feed behind the bell. */
+export interface Activity {
+  id: string
+  kind: 'message' | 'cluster' | 'signal' | 'supernova'
+  title: string
+  body: string
+  /** planet to fly to when the row is tapped, when there is one */
+  actorId?: string
+  at: number
 }
 
 /** One group conversation, folded from the flat message list for the UI. */
@@ -160,6 +178,9 @@ export function GalaxyProvider({ children }: { children: React.ReactNode }) {
   const [pendingConfirmation, setPendingConfirmation] = useState<string | null>(null)
   const [linkStatus, setLinkStatus] = useState<LinkStatus>(isRemote ? 'connecting' : 'offline')
   const [initialFocus, setInitialFocus] = useState<string | null>(null)
+  // unix ms when the activity feed was last cleared; anything newer is "unread"
+  const [seenAt, setSeenAt] = useState(() => Number(localStorage.getItem('orbit.seen') || 0))
+  const [lastMessage, setLastMessage] = useState<{ id: string; text: string; from: string } | null>(null)
   const mounted = useRef(true)
 
   useEffect(() => {
@@ -219,6 +240,27 @@ export function GalaxyProvider({ children }: { children: React.ReactNode }) {
       })
     }, 60000)
     return () => clearInterval(t)
+  }, [])
+
+  // Ping the source more often so messages land while the app is open, and
+  // immediately when the tab wakes or regains focus.
+  useEffect(() => {
+    if (!isRemote) return
+    const tick = () => {
+      if (document.visibilityState === 'hidden') return
+      void backend.refresh().then((next) => {
+        if (mounted.current) dispatch({ type: 'hydrate', state: next })
+      })
+    }
+    const t = setInterval(tick, 15000)
+    const onVisible = () => tick()
+    document.addEventListener('visibilitychange', onVisible)
+    window.addEventListener('focus', onVisible)
+    return () => {
+      clearInterval(t)
+      document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('focus', onVisible)
+    }
   }, [])
 
   const users = useMemo(() => Object.values(state.users), [state.users])
@@ -588,6 +630,103 @@ export function GalaxyProvider({ children }: { children: React.ReactNode }) {
 
   const clusterUnreadCount = useMemo(() => clusters.reduce((n, c) => n + c.unread, 0), [clusters])
 
+  // Everything that happened *to* the current planet, newest first. Signals and
+  // supernovae are public facts read off their own timestamps, so the seen-mark
+  // is a single high-water mark rather than per-item read flags.
+  const activity = useMemo<Activity[]>(() => {
+    if (!currentUser) return []
+    const me = currentUser.id
+    const out: Activity[] = []
+
+    for (const m of myMessages) {
+      if (m.from === me || m.readAt) continue
+      const peer = state.users[m.from]
+      if (!peer) continue
+      out.push({
+        id: `dm-${m.id}`,
+        kind: 'message',
+        title: `@${peer.handle} sent you a transmission`,
+        body: m.image && !m.text ? 'photo' : m.text,
+        actorId: peer.id,
+        at: m.createdAt,
+      })
+    }
+
+    for (const c of clusters) {
+      if (!c.last || c.last.from === me || c.last.readAt) continue
+      const peer = state.users[c.last.from]
+      out.push({
+        id: `cl-${c.last.id}`,
+        kind: 'cluster',
+        title: `${c.cluster.name} · @${peer?.handle ?? 'someone'}`,
+        body: c.last.image && !c.last.text ? 'photo' : c.last.text,
+        actorId: peer?.id,
+        at: c.last.createdAt,
+      })
+    }
+
+    for (const t of transmissions) {
+      out.push({
+        id: `sg-${t.signal.id}`,
+        kind: 'signal',
+        title: `@${t.user.handle} signaled your satellite`,
+        body: t.signal.text,
+        actorId: t.user.id,
+        at: t.signal.createdAt,
+      })
+    }
+
+    for (const p of supernovas) {
+      const author = state.users[p.authorId]
+      if (!author || author.id === me) continue
+      out.push({
+        id: `nv-${p.id}`,
+        kind: 'supernova',
+        title: `@${author.handle} went supernova`,
+        body: p.text,
+        actorId: author.id,
+        at: p.supernovaAt ?? p.createdAt,
+      })
+    }
+
+    return out.sort((a, b) => b.at - a.at).slice(0, 50)
+  }, [currentUser, myMessages, clusters, transmissions, supernovas, state.users])
+
+  const notifyCount = useMemo(() => activity.filter((a) => a.at > seenAt).length, [activity, seenAt])
+
+  const markActivityRead = useCallback(() => {
+    const now = Date.now()
+    setSeenAt(now)
+    localStorage.setItem('orbit.seen', String(now))
+  }, [])
+
+  // New private message while the app is open -> system notification (the bell
+  // badge and feed already cover the in-app case). `myMessages` is read via a
+  // ref-free effect so this only fires on a genuinely new message id.
+  useEffect(() => {
+    if (!currentUser) {
+      setLastMessage(null)
+      return
+    }
+    const latest = myMessages
+      .filter((m) => m.from !== currentUser.id)
+      .sort((a, b) => b.createdAt - a.createdAt)[0]
+    if (!latest) return
+    if (lastMessage && lastMessage.id === latest.id) return
+    const previous = lastMessage
+    setLastMessage({ id: latest.id, text: latest.text, from: latest.from })
+    if (!previous) return
+    const peer = state.users[latest.from]
+    const prefs = loadNotifyPrefs()
+    if (prefs.system) {
+      showSystemNotification(
+        `@${peer?.handle ?? 'a planet'} sent you a transmission`,
+        latest.image && !latest.text ? 'photo' : latest.text,
+      )
+    }
+    sfx.ping()
+  }, [myMessages, currentUser, lastMessage, state.users])
+
   const searchPlanets = useCallback(async (term: string): Promise<User[]> => {
     try {
       return await backend.searchPlanets(term)
@@ -710,6 +849,9 @@ export function GalaxyProvider({ children }: { children: React.ReactNode }) {
     clusters,
     clusterMessages,
     clusterUnreadCount,
+    activity,
+    notifyCount,
+    markActivityRead,
     searchPlanets,
     createCluster,
     sendClusterMessage,

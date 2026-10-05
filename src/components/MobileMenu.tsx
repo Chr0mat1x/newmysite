@@ -27,6 +27,7 @@ export function MobileMenu({
   onSearch,
   onAccount,
   onMessenger,
+  onNotifications,
 }: {
   open: boolean
   onClose: () => void
@@ -38,8 +39,9 @@ export function MobileMenu({
   onSearch: () => void
   onAccount: () => void
   onMessenger: () => void
+  onNotifications: () => void
 }) {
-  const { currentUser, userById, logout, resetGalaxy, transmissions, following, savedPosts, unreadCount } = useGalaxy()
+  const { currentUser, userById, logout, resetGalaxy, transmissions, following, savedPosts, unreadCount, notifyCount } = useGalaxy()
   const [confirmReset, setConfirmReset] = useState(false)
 
   return (
@@ -151,10 +153,20 @@ export function MobileMenu({
                       sfx.click()
                       onMessenger()
                     }}
-                    className="tap col-span-2 flex items-center justify-between rounded-xl border border-white/[0.08] bg-white/[0.02] px-3 py-2.5 font-mono text-[10px] uppercase tracking-[0.12em] text-white/60 active:bg-white/[0.06]"
+                    className="tap flex items-center justify-between rounded-xl border border-white/[0.08] bg-white/[0.02] px-3 py-2.5 font-mono text-[10px] uppercase tracking-[0.12em] text-white/60 active:bg-white/[0.06]"
                   >
                     messenger
                     <span className="text-white/35">{unreadCount > 0 ? unreadCount : '✉'}</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      sfx.click()
+                      onNotifications()
+                    }}
+                    className="tap flex items-center justify-between rounded-xl border border-white/[0.08] bg-white/[0.02] px-3 py-2.5 font-mono text-[10px] uppercase tracking-[0.12em] text-white/60 active:bg-white/[0.06]"
+                  >
+                    alerts
+                    <span className="text-white/35">{notifyCount > 0 ? notifyCount : '🔔'}</span>
                   </button>
                 </div>
               </div>

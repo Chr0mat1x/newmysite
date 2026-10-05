@@ -15,6 +15,7 @@ import { Toasts, type Toast } from './components/Toasts'
 import { Onboarding } from './components/Onboarding'
 import { AccountSettings } from './components/AccountSettings'
 import { Messenger } from './components/Messenger'
+import { Notifications } from './components/Notifications'
 import { PlanetBadge } from './components/PlanetBadge'
 import { layoutGalaxy } from './engine/layout'
 import type { RenderStats } from './engine/GalaxyCanvas'
@@ -22,7 +23,7 @@ import { useIsMobile } from './lib/useMedia'
 import { isMuted, setMuted, startAmbient, resumeAudio, sfx } from './lib/audio'
 
 function Orbit() {
-  const { currentUser, users, state, logout, resetGalaxy, supernovas, userById, following, savedPosts, transmissions, unreadCount, clusterUnreadCount, mode, linkStatus, busy, lastError, clearLastError, initialFocus, clearInitialFocus } =
+  const { currentUser, users, state, logout, resetGalaxy, supernovas, userById, following, savedPosts, transmissions, unreadCount, clusterUnreadCount, notifyCount, mode, linkStatus, busy, lastError, clearLastError, initialFocus, clearInitialFocus } =
     useGalaxy()
   // direct unread plus cluster unread — one badge for the whole messenger
   const mailUnread = unreadCount + clusterUnreadCount
@@ -42,6 +43,7 @@ function Orbit() {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [messengerOpen, setMessengerOpen] = useState(false)
   const [messengerPeer, setMessengerPeer] = useState<string | null>(null)
+  const [notifyOpen, setNotifyOpen] = useState(false)
   const isMobile = useIsMobile()
   const novaCount = useRef<number | null>(null)
 
@@ -162,22 +164,26 @@ function Orbit() {
         // close the topmost overlay first, then deselect
         setPaletteOpen((open) => {
           if (open) return false
-          setConsoleOpen((c) => {
-            if (c) return false
-            setComposerOpen((co) => {
-              if (co) return false
-              setNovaOpen((n) => {
-                if (n) return false
-                setMenuOpen((m) => {
-                  if (m) return false
-                  setSelected(null)
-                  return m
+          setNotifyOpen((n) => {
+            if (n) return false
+            setConsoleOpen((c) => {
+              if (c) return false
+              setComposerOpen((co) => {
+                if (co) return false
+                setNovaOpen((nv) => {
+                  if (nv) return false
+                  setMenuOpen((m) => {
+                    if (m) return false
+                    setSelected(null)
+                    return m
+                  })
+                  return nv
                 })
-                return n
+                return co
               })
-              return co
+              return c
             })
-            return c
+            return n
           })
           return open
         })
@@ -352,6 +358,24 @@ function Orbit() {
               {transmissions.length + following.length + savedPosts.length > 0 && (
                 <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-white px-1 font-mono text-[9px] font-semibold text-black">
                   {transmissions.length + following.length + savedPosts.length}
+                </span>
+              )}
+            </button>
+          )}
+
+          {currentUser && (
+            <button
+              onClick={() => {
+                sfx.click()
+                setNotifyOpen(true)
+              }}
+              aria-label={notifyCount ? `${notifyCount} notifications` : 'notifications'}
+              className="tap relative rounded-2xl border border-white/10 bg-black/45 px-3 py-2.5 backdrop-blur-xl transition-colors hover:border-pulse/40 active:border-pulse/40"
+            >
+              <span className="text-sm leading-none">🔔</span>
+              {notifyCount > 0 && (
+                <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-white px-1 font-mono text-[9px] font-semibold text-black">
+                  {notifyCount > 9 ? '9+' : notifyCount}
                 </span>
               )}
             </button>
@@ -620,6 +644,10 @@ function Orbit() {
           setMenuOpen(false)
           openMessenger()
         }}
+        onNotifications={() => {
+          setMenuOpen(false)
+          setNotifyOpen(true)
+        }}
       />
       <AccountSettings open={settingsOpen} onClose={() => setSettingsOpen(false)} />
       <Messenger
@@ -627,6 +655,12 @@ function Orbit() {
         onClose={() => setMessengerOpen(false)}
         initialPeer={messengerPeer}
         onVisit={goTo}
+      />
+      <Notifications
+        open={notifyOpen}
+        onClose={() => setNotifyOpen(false)}
+        onVisit={goTo}
+        onMessage={openMessenger}
       />
       <Toasts toasts={toasts} onDismiss={(id) => setToasts((p) => p.filter((t) => t.id !== id))} />
       <Onboarding
