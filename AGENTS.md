@@ -615,3 +615,13 @@ The online build bakes an **absolute** Supabase URL, so it never relies on the
 dev-server `/sb` proxy. Without a hosted project the main site stays on the
 offline demo; `.env.online` is gitignored, so this step is the only thing that
 switches it over.
+
+### Testing against the live project
+
+`test:messenger` and `test:clusters` create **real planets** in whatever project
+they point at. Aim them at the live ref and the galaxy gains test planets that
+show up for everyone Ñ the suites only clean up on their own happy path, and a
+locator timeout (e.g. the desktop `MESSENGER` button is `sm:`-only, so a mobile
+viewport never sees it) aborts before cleanup. Prefer a throwaway Supabase
+project for suite runs, or delete the leftovers afterward with the service role.
+
