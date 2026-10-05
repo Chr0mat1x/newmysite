@@ -371,6 +371,30 @@ and prefers `:visible` locators — the footer and mobile menu both render
 
 ## Status
 
+**ORBIT is live against a hosted backend.** Cloud project `hjxgljqjnllxgrqedjyj`
+(region eu-west-2) holds the schema; the online build is deployed at
+<https://chr0mat1x.github.io/orbit/> and the Android APK is attached to the
+`v1.2.0` GitHub release. Two phones that install that APK, or two browsers on
+that URL, share one galaxy: planets, posts, groups and private messages.
+
+Online config, all set through the Management API (no dashboard clicking):
+
+- Schema: all seven migrations in `supabase/migrations/` applied in filename
+  order (`POST /v1/projects/<ref>/database/query` per file).
+- Auth redirects: `site_url` and `uri_allow_list` include the `/orbit/` path,
+  which the app sends from `appOrigin`.
+- `mailer_autoconfirm = true` — **signups activate immediately, no mail**. The
+  built-in Supabase sender only reaches project-team addresses, and neither the
+  Gmail app passwords tried nor a verified domain were available, so confirming
+  by mail would have locked every real user out. Turn this off again once a
+  working custom SMTP is configured (see Going online).
+- `.env.online` (gitignored) holds the project URL and the anon key;
+  `android:apk:online` bakes them into the WebView.
+
+Verified against the cloud, not just locally: a UI signup on the deployed Pages
+site created its planet, and a three-planet check confirmed private messages are
+readable by their two participants and invisible to a third (RLS holds).
+
 Email registration replaced nickname-only sign-in. Supabase is now wired in:
 schema + RLS + triggers live in `supabase/migrations/`, the client layer in
 `src/lib/backends/`, and the app runs against the shared galaxy whenever the two
