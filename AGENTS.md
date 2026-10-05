@@ -213,6 +213,12 @@ and the app would fail to link. Toolchain: JDK 21 plus the Android SDK
 (`platform-tools`, `platforms;android-34`, `build-tools;34.0.0`); `ANDROID_HOME`
 and `JAVA_HOME` must point at them.
 
+The activity declares `android:windowSoftInputMode="adjustResize"`. Without it
+Android defaults to `adjustPan`, which slides the whole WebView up instead of
+shrinking it; the messenger composer lives at the bottom of a `100dvh` column,
+so the soft keyboard covers the SEND button and it cannot be tapped. Every other
+panel's composer is anchored the same way, so this one attribute fixes them all.
+
 To verify the actual artifact rather than the dev server, serve `dist/` over
 `https://localhost` with an `/sb` proxy that does **not** follow redirects (GoTrue
 returns the session in the URL fragment, which a server-side redirect would drop)
