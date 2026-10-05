@@ -383,11 +383,16 @@ Online config, all set through the Management API (no dashboard clicking):
   order (`POST /v1/projects/<ref>/database/query` per file).
 - Auth redirects: `site_url` and `uri_allow_list` include the `/orbit/` path,
   which the app sends from `appOrigin`.
-- `mailer_autoconfirm = true` — **signups activate immediately, no mail**. The
-  built-in Supabase sender only reaches project-team addresses, and neither the
-  Gmail app passwords tried nor a verified domain were available, so confirming
-  by mail would have locked every real user out. Turn this off again once a
-  working custom SMTP is configured (see Going online).
+- Mail: **custom SMTP is live**, so signup is a real email loop again —
+  `mailer_autoconfirm = false`, and Supabase sends the confirmation through
+  `smtp.yandex.ru` (port 587; 465 was rejected). Sender and `smtp_user` are the
+  owner's Yandex address, an app password (not the account password). The
+  confirmation and recovery templates are branded: the ORBIT logo from
+  `public/brand/` served off Pages, black pill button, `{{ .ConfirmationURL }}`.
+  A signup now returns no session until the link is opened — the app already
+  renders its "confirm your address" screen for that, no client change needed.
+  The built-in sender (2/hour, project-team addresses only) was unusable for
+  real users, which is why this replaced it.
 - `.env.online` (gitignored) holds the project URL and the anon key;
   `android:apk:online` bakes them into the WebView.
 
