@@ -631,3 +631,27 @@ locator timeout (e.g. the desktop `MESSENGER` button is `sm:`-only, so a mobile
 viewport never sees it) aborts before cleanup. Prefer a throwaway Supabase
 project for suite runs, or delete the leftovers afterward with the service role.
 
+## Current state (handoff, 2026-10-05)
+
+The "can't send a message in the APK" report was **the soft keyboard covering the
+SEND button**, not a send bug: the activity had no `windowSoftInputMode`, so
+Android chose `adjustPan` and slid the WebView instead of resizing it. Fixed with
+`android:windowSoftInputMode="adjustResize"` (commit `f2d2fab`). The send path
+itself is verified working on the live site, in a mobile viewport, and against the
+exact APK bundle.
+
+Rebuilding the APK in this container needs a toolchain that is not preinstalled:
+`apt-get install openjdk-21-jdk-headless`, then the Android command-line tools
+(`dl.google.com/android/repository/commandlinetools-linux-*.zip`) into
+`/opt/android-sdk` with `sdkmanager "platform-tools" "platforms;android-34"
+"build-tools;34.0.0"`, and `ANDROID_HOME`/`JAVA_HOME` exported. `npm run
+android:apk:online` then builds to `android/app/build/outputs/apk/debug/`.
+Debug APKs are signed with a **per-machine** debug key, so a new build cannot be
+installed over an older one without uninstalling first; a stable release keystore
+is needed for in-place updates.
+
+Open items: the `main` branch is **ahead of `origin/main`** (the adjustResize fix
+and two doc commits are local only) and has not been pushed. Closed-app push
+notifications still do not work in the APK — Web Push is unavailable in an
+Android WebView, so that needs a native local-notification plugin, not VAPID.
+
