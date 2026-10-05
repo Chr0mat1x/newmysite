@@ -374,7 +374,8 @@ and prefers `:visible` locators — the footer and mobile menu both render
 **ORBIT is live against a hosted backend.** Cloud project `hjxgljqjnllxgrqedjyj`
 (region eu-west-2) holds the schema; the online build is deployed at
 <https://chr0mat1x.github.io/orbit/> and the Android APK is attached to the
-`v1.2.0` GitHub release. Two phones that install that APK, or two browsers on
+`v1.3.0` GitHub release (real email signup, branded mail, the ORBIT launcher
+icon and favicon). Two phones that install that APK, or two browsers on
 that URL, share one galaxy: planets, posts, groups and private messages.
 
 Online config, all set through the Management API (no dashboard clicking):
