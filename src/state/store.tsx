@@ -6,7 +6,13 @@ import { SupabaseBackend } from '../lib/backends/supabase'
 import type { Backend } from '../lib/backends/types'
 import { isRemote, recovery, consumeEmailLink, type LinkStatus } from '../lib/supabase'
 import { sfx } from '../lib/audio'
-import { loadNotifyPrefs, showSystemNotification, saveNotifyPrefs, requestSystemPermission } from '../lib/notifications'
+import {
+  loadNotifyPrefs,
+  showSystemNotification,
+  saveNotifyPrefs,
+  requestSystemPermission,
+} from '../lib/notifications'
+import { isNative, onAppForegroundChange } from '../lib/native'
 import { pushSupported, subscribePush, unsubscribePush } from '../lib/push'
 
 // Pick the backend once, at module load. `isRemote` is decided by whether the
@@ -248,11 +254,13 @@ export function GalaxyProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   // Ping the source more often so messages land while the app is open, and
-  // immediately when the tab wakes or regains focus.
+  // immediately when the tab wakes or regains focus. Inside the Android shell
+  // the interval keeps running while the app is backgrounded (but still alive),
+  // so a message arriving then still reaches the native notification path.
   useEffect(() => {
     if (!isRemote) return
     const tick = () => {
-      if (document.visibilityState === 'hidden') return
+      if (!isNative && document.visibilityState === 'hidden') return
       void backend.refresh().then((next) => {
         if (mounted.current) dispatch({ type: 'hydrate', state: next })
       })
@@ -261,10 +269,12 @@ export function GalaxyProvider({ children }: { children: React.ReactNode }) {
     const onVisible = () => tick()
     document.addEventListener('visibilitychange', onVisible)
     window.addEventListener('focus', onVisible)
+    const offNative = isNative ? onAppForegroundChange(onVisible) : () => {}
     return () => {
       clearInterval(t)
       document.removeEventListener('visibilitychange', onVisible)
       window.removeEventListener('focus', onVisible)
+      offNative()
     }
   }, [])
 

@@ -39,4 +39,8 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Android 13+: the runtime prompt the local-notifications plugin requests.
+         The plugin's own manifest also declares it; kept here so the app's intent
+         is visible without reading a dependency. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 </manifest>

@@ -21,6 +21,13 @@ const config: CapacitorConfig = {
   server: {
     androidScheme: 'https',
   },
+  plugins: {
+    LocalNotifications: {
+      // status-bar glyph for the messenger's native notifications
+      smallIcon: 'ic_stat_orbit',
+      iconColor: '#7dd3fc',
+    },
+  },
 }
 
 export default config

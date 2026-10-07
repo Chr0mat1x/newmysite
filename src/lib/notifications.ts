@@ -1,12 +1,24 @@
 /**
  * System notifications, layered on top of the in-app activity feed.
  *
- * The Web Notification API is optional everywhere: iOS only exposes it to an
- * installed web app (16.4+), and a browser that has not been granted permission
- * throws on construction. Every call here is therefore defensive — a missing
- * permission or API must never break the app, it just means the bell badge is
- * the only channel.
+ * Two channels exist. On the web it is the `Notification` API plus Web Push, and
+ * both are optional (iOS only exposes them to an installed web app; a browser
+ * that was not granted permission throws on construction). Inside the Android
+ * shell neither the `Notification` API nor `PushManager` exists, so notifications
+ * go through the native `@capacitor/local-notifications` plugin instead.
+ *
+ * Every call here is defensive — a missing permission or API must never break
+ * the app, it just means the bell badge is the only channel.
  */
+
+import {
+  appForeground,
+  ensureNotificationPermission,
+  isNative,
+  nativePermission,
+  showLocalNotification,
+  type NativePermission,
+} from './native'
 
 const KEY = 'orbit.notify'
 
@@ -28,15 +40,24 @@ export function saveNotifyPrefs(prefs: NotifyPrefs): void {
 }
 
 export function notificationsSupported(): boolean {
+  if (isNative) return true
   return typeof window !== 'undefined' && 'Notification' in window
 }
 
 /** `unsupported` is distinct from `denied` so the UI can explain the difference. */
-export function systemPermission(): NotificationPermission | 'unsupported' {
+export function systemPermission(): NotificationPermission | 'unsupported' | NativePermission {
+  if (isNative) return 'prompt' // read asynchronously via `systemPermissionAsync`
   return notificationsSupported() ? Notification.permission : 'unsupported'
 }
 
-export async function requestSystemPermission(): Promise<NotificationPermission | 'unsupported'> {
+/** The real permission on both platforms; native is async. */
+export async function systemPermissionAsync(): Promise<NotificationPermission | 'unsupported' | NativePermission> {
+  if (isNative) return nativePermission()
+  return systemPermission()
+}
+
+export async function requestSystemPermission(): Promise<NotificationPermission | 'unsupported' | NativePermission> {
+  if (isNative) return ensureNotificationPermission()
   if (!notificationsSupported()) return 'unsupported'
   try {
     return await Notification.requestPermission()
@@ -46,12 +67,16 @@ export async function requestSystemPermission(): Promise<NotificationPermission 
 }
 
 /**
- * Raise an OS notification. Only fires while the document is hidden — a visible
- * app already shows its own toast, and doubling up is noise.
+ * Raise an OS notification. Only fires while the app is not in the foreground —
+ * a visible app already shows its own toast, and doubling up is noise.
  */
 export function showSystemNotification(title: string, body?: string, onClick?: () => void): void {
+  if (appForeground()) return
+  if (isNative) {
+    void showLocalNotification(`${title}|${body ?? ''}`, title, body ?? '')
+    return
+  }
   if (!notificationsSupported() || Notification.permission !== 'granted') return
-  if (typeof document !== 'undefined' && document.visibilityState === 'visible') return
   try {
     const note = new Notification(title, {
       body,

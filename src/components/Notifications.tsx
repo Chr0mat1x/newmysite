@@ -8,8 +8,11 @@ import {
   loadNotifyPrefs,
   notificationsSupported,
   systemPermission,
+  systemPermissionAsync,
   type NotifyPrefs,
 } from '../lib/notifications'
+
+type PermissionView = NotificationPermission | 'unsupported' | 'granted' | 'denied' | 'prompt'
 
 const GLYPH: Record<string, string> = {
   message: '✉',
@@ -41,27 +44,43 @@ export function Notifications({
   const { activity, markActivityRead, userById, enableSystemNotifications, disableSystemNotifications } = useGalaxy()
   const isMobile = useIsMobile()
   const [prefs, setPrefs] = useState<NotifyPrefs>(() => loadNotifyPrefs())
-  const [permission, setPermission] = useState(() => systemPermission())
+  const [permission, setPermission] = useState<PermissionView>(() => systemPermission())
 
   // Opening the bell is the "I have seen these" gesture — clear the badge.
   useEffect(() => {
     if (open) markActivityRead()
   }, [open, markActivityRead])
 
+  // Native permission is async, so read it whenever the panel opens.
+  useEffect(() => {
+    if (!open) return
+    let live = true
+    void systemPermissionAsync().then((p) => {
+      if (live) setPermission(p)
+    })
+    return () => {
+      live = false
+    }
+  }, [open])
+
+  const refresh = async () => {
+    setPermission(await systemPermissionAsync())
+    setPrefs(loadNotifyPrefs())
+  }
+
   const enableSystem = async () => {
     await enableSystemNotifications()
-    setPermission(systemPermission())
-    setPrefs(loadNotifyPrefs())
+    await refresh()
   }
 
   const toggleSystem = () => {
     if (prefs.system) {
-      void disableSystemNotifications().then(() => setPrefs(loadNotifyPrefs()))
+      void disableSystemNotifications().then(refresh)
       return
     }
     if (permission === 'granted') {
       // permission already granted: just turn the mirror + subscription back on
-      void enableSystemNotifications().then(() => setPrefs(loadNotifyPrefs()))
+      void enableSystemNotifications().then(refresh)
       return
     }
     void enableSystem()

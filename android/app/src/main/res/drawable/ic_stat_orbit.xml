@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Status-bar small icon: a planet with a ring, white silhouette on transparent
+     (Android masks small icons to a single colour, so only the alpha matters). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M12,5.5a6.5,6.5 0 1,0 0,13a6.5,6.5 0 1,0 0,-13zM12,7.5a4.5,4.5 0 1,1 0,9a4.5,4.5 0 1,1 0,-9z" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M3.2,14.9c-0.9,-0.5 -1.4,-1 -1.4,-1.6c0,-1.4 3.6,-2.9 8.5,-3.6l0.4,1.9c-3.9,0.6 -6.6,1.7 -6.6,2.4c0,0.3 0.5,0.7 1.4,1.1z" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M20.8,9.1c0.9,0.5 1.4,1 1.4,1.6c0,1.4 -3.6,2.9 -8.5,3.6l-0.4,-1.9c3.9,-0.6 6.6,-1.7 6.6,-2.4c0,-0.3 -0.5,-0.7 -1.4,-1.1z" />
+</vector>
