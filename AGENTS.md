@@ -351,6 +351,17 @@ refuses the Push API in incognito and there is no way to feature-detect that, so
 Playwright's default context can never exercise it. `tests/push-delivery.mjs`
 goes further and sends a real push through the push service to prove delivery.
 
+Local APK builds (when CI secrets are unavailable): install JDK 21, drop
+cmdline-tools into a **writable** dir (`/workspace/android-sdk`, not `/opt` â€”
+sdkmanager cannot write its install-properties there and gradle then rejects the
+licenses), `yes | sdkmanager --sdk_root=... --licenses`, install
+`platform-tools platforms;android-34 build-tools;34.0.0`, and set
+`android/local.properties` to that path (it defaults to `/opt/android-sdk`).
+Then `npm run android:apk:online`. Note the agent's `GITHUB_TOKEN` is an
+installation token without the Actions-Secrets permission, so it cannot set the
+workflow secrets; it *can* create a release and upload the APK asset, which is
+how v1.3.4 shipped.
+
 The APK is built by `.github/workflows/android-apk.yml` on a GitHub runner
 (`workflow_dispatch`, or a `v*` tag), because the dev container has no persistent
 Android toolchain — reinstalling JDK 21 + the SDK on every container restart is
