@@ -325,19 +325,38 @@ goes in `.env.online`, the private half **never** leaves the function secrets.
 Deploy with `npx supabase functions deploy send-push --project-ref <ref>
 --no-verify-jwt`.
 
-**The APK cannot do this.** Web Push is not available in an Android WebView
-(`PushManager` is undefined; the push API is Chromium-only, not WebView), so no
-amount of backend work makes the Capacitor shell receive a push. This is why the
-Firebase route was abandoned and why the deliverable is the *installed PWA*:
-open the site in Chrome and "Add to Home screen". Installed that way it gets
-real Telegram-style notifications with the app closed. In-app alerts still work
-everywhere, including the APK.
+**The APK cannot use Web Push.** `PushManager` is undefined in an Android
+WebView (the push API is Chromium-only, not WebView), so no amount of backend
+work makes the Capacitor shell receive a server push. The shell instead goes
+through **native local notifications** (`@capacitor/local-notifications`): the
+WebView's own 15s poll runs `showSystemNotification`, which on native schedules a
+real OS notification. Two consequences worth knowing:
 
-The browser side is verified by `npm run test:push` (needs a dev server started
-with `VITE_VAPID_PUBLIC_KEY` set). It uses a **persistent** Chrome profile:
-Chrome refuses the Push API in incognito and there is no way to feature-detect
-that, so Playwright's default context can never exercise it. `tests/push-delivery.mjs`
+- `window.Notification` does not exist in a WebView either, so before this the
+  in-app "System notifications" toggle silently did nothing. `src/lib/native.ts`
+  is the single place that decides web vs. native; `document.visibilityState`
+  does not follow the Android task state, so foreground is read from
+  `@capacitor/app`'s `appStateChange`.
+- This only covers the app while it is **alive** (foreground or backgrounded).
+  After the task is swiped away the WebView is gone and nothing polls — true
+  closed-app delivery needs a native foreground service or FCM, neither of which
+  is wired up yet.
+
+Web Push still reaches a *closed* app in the browser, which is why the installed
+PWA remains the better channel on Android: open the site in Chrome and "Add to
+Home screen" for Telegram-style notifications with the app closed. The browser
+side is verified by `npm run test:push` (needs a dev server started with
+`VITE_VAPID_PUBLIC_KEY` set). It uses a **persistent** Chrome profile: Chrome
+refuses the Push API in incognito and there is no way to feature-detect that, so
+Playwright's default context can never exercise it. `tests/push-delivery.mjs`
 goes further and sends a real push through the push service to prove delivery.
+
+The APK is built by `.github/workflows/android-apk.yml` on a GitHub runner
+(`workflow_dispatch`, or a `v*` tag), because the dev container has no persistent
+Android toolchain — reinstalling JDK 21 + the SDK on every container restart is
+not worth it. The job needs `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` and
+`VITE_VAPID_PUBLIC_KEY` as repo secrets; it writes them into `.env.online`
+(gitignored) before `npm run android:sync`.
 
 
 ### Mail
