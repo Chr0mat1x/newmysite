@@ -47,11 +47,8 @@ jobs:
             echo "VITE_VAPID_PUBLIC_KEY=$VAPID_PUBLIC_KEY"
           } > .env.online
 
-      - name: Build web + sync Capacitor
-        run: npm run android:sync
-
-      - name: Assemble debug APK
-        run: cd android && ./gradlew assembleDebug --no-daemon
+      - name: Build web + sync + assemble APK
+        run: npm run android:apk:online
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
